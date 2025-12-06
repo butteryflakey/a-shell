@@ -8,7 +8,8 @@
 
 import UIKit
 import SwiftUI
-import WebKit
+import WebKit // for WebAssembly
+import SwiftTerm // for the terminal window
 import ios_system
 import MobileCoreServices
 import Combine
@@ -45,11 +46,11 @@ let myToolbarTip = toolbarTip()
 @available(iOS 17, *)
 let startInternalBrowserTip = startInternalBrowser()
 
-class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelegate, WKScriptMessageHandler, UIDocumentPickerDelegate, UIPopoverPresentationControllerDelegate, UIFontPickerViewControllerDelegate, UIDocumentInteractionControllerDelegate, UIGestureRecognizerDelegate {
+class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelegate, WKScriptMessageHandler, UIDocumentPickerDelegate, UIPopoverPresentationControllerDelegate, UIFontPickerViewControllerDelegate, UIDocumentInteractionControllerDelegate, UIGestureRecognizerDelegate, TerminalViewDelegate {
     var window: UIWindow?
     var screen: UIScreen?
     var windowScene: UIWindowScene?
-    var webView: Webview.WebViewType?
+    var terminalView: TerminalView?
     var wasmWebView: WKWebView? // webView for executing wasm
     var contentView: ContentView?
     var history: [String] = []
@@ -130,7 +131,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var errorCode:Int32 = 0
     var errorMessage: String = ""
     var extraBytes: Data? = nil
-
+    var commandLine = ""
+    
     // Create a document picker for directories.
     private let documentPicker =
     UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
@@ -196,47 +198,14 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 title.removeLast("\\n".count)
                 sendCarriageReturn = true
             }
-            if (webView?.url?.path == Bundle.main.resourcePath! + "/hterm.html") {
-                DispatchQueue.main.async {
-                    self.webView?.evaluateJavaScript("window.term_.io.onVTKeystroke(\"" + title + "\");") { (result, error) in
-                        // if let error = error { print(error) }
-                        // if let result = result { print(result) }
-                    }
-                    if (sendCarriageReturn) {
-                        self.webView?.evaluateJavaScript("window.term_.io.onVTKeystroke(\"" + "\\r" + "\");") { (result, error) in
-                            // if let error = error { print(error) }
-                            // if let result = result { print(result) }
-                        }
-                    }
-                }
+            // If it's termView at the front, just print the string
+            // Otherwise, use webView?.evaluateJavaScript()
+            if (title == "\\u{007F}") {
+                self.terminalView?.deleteBackward()
             } else {
-                if (title == "\\u{001B}") { // escape
-                    webView?.evaluateJavaScript("var event = new KeyboardEvent('keydown', {which:27, keyCode:27, key:'Esc', code:'Esc', bubbles:true});document.activeElement.dispatchEvent(event);") { (result, error) in
-                        // if let error = error { print(error) }
-                        // if let result = result { print(result) }
-                    }
-                } else if (title == "\\u{007F}") { // delete
-                    webView?.evaluateJavaScript("var event = new KeyboardEvent('keydown', {which:8, keyCode:8, key:'Delete', code:'Delete', bubbles:true});document.activeElement.dispatchEvent(event);") { (result, error) in
-                        // if let error = error { print(error) }
-                        // if let result = result { print(result) }
-                    }
-                } else {
-                    // editor.insert() work with ACE-editor, but not with others
-                    // Still not working: control
-                    // This works with CodeMirror and ACE:
-                    // document.execCommand("insertText", false, "This is a test");
-                    DispatchQueue.main.async {
-                        self.webView?.evaluateJavaScript("document.execCommand(\"insertText\", false, \"" + title + "\");") { (result, error) in
-                            // if let error = error { print(error) }
-                            // if let result = result { print(result) }
-                        }
-                        if (sendCarriageReturn) {
-                            self.webView?.evaluateJavaScript("document.execCommand(\"insertText\", false, \"" + "\\r" + "\");") { (result, error) in
-                                // if let error = error { print(error) }
-                                // if let result = result { print(result) }
-                            }
-                        }
-                    }
+                self.terminalView?.feed(text: title)
+                if (sendCarriageReturn) {
+                    self.terminalView?.feed(text: "\r\n")
                 }
             }
         }
@@ -251,7 +220,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_1(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -260,7 +229,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_2(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -269,7 +238,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_3(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -278,7 +247,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_4(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -287,7 +256,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_5(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -296,7 +265,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_6(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -305,7 +274,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_7(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -314,7 +283,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_8(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -323,7 +292,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_9(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -332,7 +301,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_10(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -341,7 +310,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_11(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -350,7 +319,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_12(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -359,7 +328,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_13(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -368,7 +337,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertString_14(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -377,7 +346,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertString(sender)
-     }
+    }
     
     @objc private func insertCommand(_ sender: UIBarButtonItem) {
         // runs the command, and inserts on screen the result of running it. So a button can produce the current date, for example.
@@ -429,7 +398,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_1(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -438,7 +407,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_2(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -447,7 +416,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_3(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -456,7 +425,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_4(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -465,7 +434,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_5(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -474,7 +443,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_6(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -483,7 +452,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_7(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -492,7 +461,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_8(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -501,7 +470,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_9(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -510,7 +479,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_10(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -519,7 +488,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_11(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -528,7 +497,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_12(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -537,7 +506,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_13(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -546,7 +515,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func insertCommand_14(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -555,18 +524,16 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         insertCommand(sender)
-     }
+    }
     
     @objc private func systemAction(_ sender: UIBarButtonItem) {
         if let title = title(sender) {
             if (title == "paste") {
-                if let pastedString = UIPasteboard.general.string {
-                    // NSLog("Sending text to paste: \(pastedString)")
-                    webView?.paste(pastedString)
-                }
+                terminalView?.paste(sender)
                 return
             }
             var commandString: String? = nil
+#if TODO
             if (webView?.url?.path == Bundle.main.resourcePath! + "/hterm.html") {
                 // Terminal window using hterm.org, use window.term_.io.onVTKeystroke
                 switch (title) {
@@ -622,7 +589,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 case "right":
                     commandString = "var event = new KeyboardEvent('keydown', {which:39, keyCode:39, key:'Right', code:'Right', bubbles:true});document.activeElement.dispatchEvent(event);"
                     break
-                // These are more specific to ACE-editor:
+                    // These are more specific to ACE-editor:
                 case "copy":
                     commandString = "editor.commands.exec('copy');"
                     break
@@ -648,7 +615,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 default:
                     break
                 }
-
+                
             }
             if (commandString != nil) {
                 webView?.evaluateJavaScript(commandString!) { (result, error) in
@@ -656,6 +623,41 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     // if let result = result { print(result) }
                 }
             }
+#else
+            // If it's the regular terminal:
+            switch (title) {
+            case "up":
+                // Don't know
+                break
+            case "down":
+                
+                break
+            case "left":
+                break
+            case "right":
+                break
+            case "copy":
+                break
+            case "cut":
+                break
+            case "selectAll":
+                break
+            case "control":
+                controlOn = !controlOn;
+                if #available(iOS 15.0, *) {
+                    // This has no impact on the button appearance with systemToolbar and no keyboard visible.
+                    sender.isSelected = controlOn
+                } else {
+                    // buttonName.fill? if it exists?
+                    let configuration = UIImage.SymbolConfiguration(pointSize: fontSize, weight: .regular, scale: .large)
+                    sender.image = controlOn ? UIImage(systemName: "chevron.up.square.fill")!.withConfiguration(configuration) :
+                    UIImage(systemName: "chevron.up.square")!.withConfiguration(configuration)
+                }
+                break
+            default:
+                break
+            }
+#endif
         }
     }
     
@@ -666,7 +668,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
 
     @objc private func systemAction_1(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -675,7 +677,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     @objc private func systemAction_2(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
             if let buttonGroup = sender.buttonGroup {
@@ -683,7 +685,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_3(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -692,7 +694,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
 
     @objc private func systemAction_4(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -701,7 +703,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_5(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -710,7 +712,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_6(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -719,7 +721,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_7(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -728,7 +730,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_8(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -737,7 +739,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_9(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -746,7 +748,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_10(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -755,7 +757,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_11(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -764,7 +766,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_12(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -773,7 +775,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_13(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -782,7 +784,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
     @objc private func systemAction_14(_ sender: UIBarButtonItem) {
         if (useSystemToolbar) {
@@ -791,30 +793,30 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
         systemAction(sender)
-     }
+    }
     
 
     
     @objc func hideKeyboard() {
         DispatchQueue.main.async {
-            guard self.webView != nil else { return }
-            self.webView!.endEditing(true)
-            self.webView!.blur()
-            self.webView!.keyboardDisplayRequiresUserAction = true
+            guard self.terminalView != nil else { return }
+            if self.terminalView!.isFirstResponder {
+                _ = self.terminalView!.resignFirstResponder()
+            }
         }
     }
     
     @objc func hideToolbar() {
         DispatchQueue.main.async {
             showToolbar = false
-            self.webView!.addInputAccessoryView(toolbar: self.emptyToolbar)
+            self.terminalView!.inputAccessoryView = self.emptyToolbar
             if (useSystemToolbar) {
-                self.webView!.inputAssistantItem.leadingBarButtonGroups = []
-                self.webView!.inputAssistantItem.trailingBarButtonGroups = []
+                self.terminalView!.inputAssistantItem.leadingBarButtonGroups = []
+                self.terminalView!.inputAssistantItem.trailingBarButtonGroups = []
             }
         }
     }
-@objc func generateToolbarButtons() {
+    @objc func generateToolbarButtons() {
         // check issue with screen size and pico.
         // Scan the configuration file to generate the button groups:
         var configFile = Bundle.main.resourceURL?.appendingPathComponent("defaultToolbar.txt")
@@ -996,7 +998,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         button = UIBarButtonItem(title: buttonParts[0], style: .plain, target: self, action: action)
                         button!.target = self
                     }
-                    
                     if (button == nil) { continue }
                     // Sanitize the button title before storing it:
                     if (buttonParts[1] == "insertString") {
@@ -1025,14 +1026,14 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         DispatchQueue.main.async {
             if (useSystemToolbar) {
                 showToolbar = false
-                self.webView?.addInputAccessoryView(toolbar: self.emptyToolbar)
-                self.webView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
-                self.webView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
+                self.terminalView?.inputAccessoryView = self.emptyToolbar
+                self.terminalView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
+                self.terminalView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
             } else {
                 showToolbar = true
-                self.webView?.inputAssistantItem.leadingBarButtonGroups = []
-                self.webView?.inputAssistantItem.trailingBarButtonGroups = []
-                self.webView?.addInputAccessoryView(toolbar: self.editorToolbar)
+                self.terminalView?.inputAssistantItem.leadingBarButtonGroups = []
+                self.terminalView?.inputAssistantItem.trailingBarButtonGroups = []
+                self.terminalView?.inputAccessoryView = self.editorToolbar
             }
         }
     }
@@ -1296,9 +1297,9 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     }
     
     func printPrompt() {
-        // - set promptstring in JS
-        // - have window.printPrompt() use promptString
         lastUsedPrompt = parsePrompt()
+        terminalView?.feed(text: lastUsedPrompt)
+        #if TODO
         DispatchQueue.main.async {
             self.webView?.evaluateJavaScript("window.commandRunning = ''; window.promptMessage='\(self.lastUsedPrompt)'; window.printPrompt(); window.updatePromptPosition();") { (result, error) in
                 /* if let error = error {
@@ -1309,6 +1310,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 } */
             }
         }
+        #endif
     }
     
     func printHistory() {
@@ -1342,17 +1344,11 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     }
     
     func clearScreen() {
-        DispatchQueue.main.async {
-            // clear entire display: ^[[2J
-            // position cursor on top line: ^[[1;1H 
-            self.webView?.evaluateJavaScript("window.term_.io.print('" + self.escape + "[2J'); window.term_.io.print('" + self.escape + "[1;1H'); window.printedContent = ''; ") { (result, error) in
-                // if let error = error { print(error) }
-                // if let result = result { print(result) }
-            }
-            // self.webView?.accessibilityLabel = ""
-            // Store window.printedContent as new:
-            self.windowPrintedContent = "";
-        }
+        // clear entire display: ^[[2J
+        // position cursor on top line: ^[[1;1H
+        terminalView?.feed(text: self.escape + "[2J")
+        terminalView?.feed(text: self.escape + "[1;1H")
+        self.windowPrintedContent = "";
     }
 
     func executeWebAssembly(arguments: [String]?) -> Int32 {
@@ -1515,10 +1511,13 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
 
             if (thread_stdin_copy == nil) {
                 // Strangely, the letters typed after ^D do not appear on screen. We force two carriage return to get the prompt visible:
+                #if TODO
                 webView?.evaluateJavaScript("window.term_.io.onVTKeystroke(\"\\n\\n\"); window.term_.io.currentCommand = '';") { (result, error) in
                     // if let error = error { print(error) }
                     // if let result = result { print(result) }
                 }
+                #endif
+                terminalView?.feed(text: "\n\n")
             }
             // Do not close thread_stdin because if it's a pipe, processes could still be writing into it
             // fclose(thread_stdin)
@@ -1566,8 +1565,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         var jscWebView = wasmWebView
         var process_args = "var process = process ?? {}; process.argv = [";
         for argument in arguments! {
-            if ((argument == "--in-window") && (jscWebView == wasmWebView)) {
-                jscWebView = webView
+            if (argument == "--in-window") {
+                fputs("--in-window is not supported anymore.", thread_stderr)
             } else if ((argument == "--silent") && !silent) {
                 silent = true
             } else {
@@ -1805,7 +1804,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     
     func writeConfigWindow() {
         // Force rewrite of all color parameters. Used for reset.
-        let traitCollection = webView!.traitCollection
+        let traitCollection = terminalView!.traitCollection
         // Set scene parameters (unless they were set before)
         let backgroundColor = terminalBackgroundColor ?? UIColor.systemBackground.resolvedColor(with: traitCollection)
         let foregroundColor = terminalForegroundColor ?? UIColor.placeholderText.resolvedColor(with: traitCollection)
@@ -1817,118 +1816,47 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         let fontLigature = terminalFontLigature ?? factoryFontLigature
         // Force writing all config to term. Used when we changed many parameters.
         var command = "window.term_.setForegroundColor('" + foregroundColor.toHexString() + "'); window.term_.setBackgroundColor('" + backgroundColor.toHexString() + "'); window.term_.setCursorColor('" + cursorColor.toHexString() + "'); window.fontSize = \(fontSize); window.term_.setFontSize(\(fontSize)); window.term_.setFontFamily('\(fontName)'); window.term_.setCursorShape('\(cursorShape)'); window.term_.scrollPort_.screen_.style.fontVariantLigatures = '\(fontLigature)';"
-        DispatchQueue.main.async {
-            self.webView?.evaluateJavaScript(command) { (result, error) in
-                if let error = error {
-                    print("Error in executing \(command): \(error)")
-                }
-                // if let result = result {
-                //     print(result)
-                // }
-            }
-            command = "window.term_.prefs_.setSync('foreground-color', '" + foregroundColor.toHexString() + "'); window.term_.prefs_.setSync('background-color', '" + backgroundColor.toHexString() + "'); window.term_.prefs_.setSync('cursor-color', '" + cursorColor.toHexString() + "'); window.term_.prefs_.setSync('font-size', '\(fontSize)'); window.term_.prefs_.setSync('font-family', '\(fontName)'); window.term_.prefs_.setSync('cursor-shape', '\(cursorShape)');"
-            self.webView?.evaluateJavaScript(command) { (result, error) in
-                // if let error = error {
-                //     print(error)
-                // }
-                // if let result = result {
-                //     print(result)
-                // }
-            }
-        }
     }
     
     func configWindow(fontSize: Float?, fontName: String?, backgroundColor: UIColor?, foregroundColor: UIColor?, cursorColor: UIColor?, cursorShape: String?, fontLigature: String?) {
         if (fontSize != nil) {
             terminalFontSize = fontSize
-            let fontSizeCommand = "window.fontSize = \(fontSize!); window.term_.setFontSize(\(fontSize!));"
-            DispatchQueue.main.async {
-                self.webView?.evaluateJavaScript(fontSizeCommand) { (result, error) in
-                    if let error = error {
-                        print("Error in executing \(fontSizeCommand): \(error)")
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
         }
         if (fontName != nil) {
             terminalFontName = fontName
-            if (!terminalFontName!.hasSuffix(".ttf") && !terminalFontName!.hasSuffix(".otf")) {
-                // System fonts, defined by their names:
-                let fontNameCommand = "window.term_.setFontFamily(\"\(fontName!)\");"
-                DispatchQueue.main.async {
-                    self.webView?.evaluateJavaScript(fontNameCommand) { (result, error) in
-                        if let error = error { 
-                            print("Error in executing \(fontNameCommand): \(error)")
-                        }
-                        // if let result = result { print(result) }
-                    }
-                }
-            } else {
-                // local fonts, defined by a file:
-                // Currently does not work.
-                let localFontURL = URL(fileURLWithPath: terminalFontName!)
-                var localFontName = localFontURL.lastPathComponent
-                localFontName.removeLast(".ttf".count)
-                // NSLog("Local Font Name: \(localFontName)")
-                DispatchQueue.main.async {
-                    let fontNameCommand = "var newStyle = document.createElement('style'); newStyle.appendChild(document.createTextNode(\"@font-face { font-family: '\(localFontName)' ; src: url('\(localFontURL.path)') format('truetype'); }\")); document.head.appendChild(newStyle); window.term_.setFontFamily(\"\(localFontName)\");"
-                    // NSLog(fontNameCommand)
-                    self.webView?.evaluateJavaScript(fontNameCommand) { (result, error) in
-                        if let error = error {
-                            print("Error in executing \(fontNameCommand): \(error)")
-                        }
-                        // if let result = result { print(result) }
-                    }
-                }
-            }
+        }
+        if let terminalFont = UIFont(name: terminalFontName ?? factoryFontName, size: CGFloat(terminalFontSize ?? factoryFontSize)) {
+            terminalView?.font = terminalFont
         }
         if (backgroundColor != nil) {
             terminalBackgroundColor = backgroundColor
-            let terminalColorCommand = "window.term_.setBackgroundColor(\"\(backgroundColor!.toHexString())\");"
-            DispatchQueue.main.async {
-                self.webView?.backgroundColor = backgroundColor
-                self.webView?.evaluateJavaScript(terminalColorCommand) { (result, error) in
-                    if let error = error {
-                        print("Error in executing \(terminalColorCommand): \(error)")
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
+            terminalView?.backgroundColor = terminalBackgroundColor
         }
         if (foregroundColor != nil) {
             terminalForegroundColor = foregroundColor
-            let terminalColorCommand = "window.term_.setForegroundColor(\"\(foregroundColor!.toHexString())\");"
-            DispatchQueue.main.async {
-                self.webView?.tintColor = foregroundColor
-                self.webView?.evaluateJavaScript(terminalColorCommand) { (result, error) in
-                    // if let error = error { print(error) }
-                    // if let result = result { print(result) }
-                }
-            }
+            terminalView?.tintColor = terminalForegroundColor
+            terminalView?.getTerminal().foregroundColor = (terminalForegroundColor?.toSwiftTermColor())!
         }
         if (cursorColor != nil) {
             terminalCursorColor = cursorColor
-            let terminalColorCommand = "window.term_.setCursorColor(\"\(cursorColor!.toHexString())\");"
-            DispatchQueue.main.async {
-                self.webView?.evaluateJavaScript(terminalColorCommand) { (result, error) in
-                    if let error = error {
-                        print("Error in executing \(terminalColorCommand): \(error)")
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
+            terminalView?.caretColor = terminalCursorColor!
+            terminalView?.getTerminal().cursorColor = terminalCursorColor!.toSwiftTermColor()
         }
         if (cursorShape != nil) {
             terminalCursorShape = cursorShape
-            let terminalColorCommand = "window.term_.setCursorShape(\"\(cursorShape!)\");"
-            DispatchQueue.main.async {
-                self.webView?.evaluateJavaScript(terminalColorCommand) { (result, error) in
-                    if let error = error {
-                        print("Error in executing \(terminalColorCommand): \(error)")
-                    }
-                    // if let result = result { print(result) }
-                }
+            switch (cursorShape!.lowercased()) {
+            case "block":
+                terminalView?.getTerminal().setCursorStyle(.blinkBlock)
+                break
+            case "bar":
+                terminalView?.getTerminal().setCursorStyle(.blinkBar)
+                break
+            case "underline":
+                terminalView?.getTerminal().setCursorStyle(.blinkUnderline)
+                break
+            default:
+                terminalView?.getTerminal().setCursorStyle(.blinkUnderline)
+                break
             }
         }
         // Update COLORFGBG depending on new color:
@@ -1937,17 +1865,9 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             let bg = backgroundColor ?? terminalBackgroundColor ?? UIColor.systemBackground.resolvedColor(with: traitCollection)
             setEnvironmentFGBG(foregroundColor: fg, backgroundColor: bg)
         }
+        // TODO: ligatures are activated by default. I'm not sure how to deactivate them with SwiftTerm
         if (fontLigature != nil) {
             terminalFontLigature = fontLigature
-            let terminalFontLigatureCommand = "window.term_.scrollPort_.screen_.style.fontVariantLigatures = '\(fontLigature!)';"
-            DispatchQueue.main.async {
-                self.webView?.evaluateJavaScript(terminalFontLigatureCommand) { (result, error) in
-                    if let error = error {
-                        print("Error in executing \(terminalFontLigatureCommand): \(error)")
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
         }
     }
     
@@ -2278,32 +2198,28 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     
     // Even if Caps-Lock is activated, send lower case letters.
     @objc func insertKey(_ sender: UIKeyCommand) {
+        NSLog("Entered insertKey: \(sender.input)")
         guard (sender.input != nil) else { return }
-        // This function only gets called if we are in a notebook, in edit_mode:
-        // Only remap the keys if we are in a notebook, editing cell:
-        webView?.evaluateJavaScript("window.term_.io.onVTKeystroke(\"" + sender.input! + "\");") { (result, error) in
-            // if let error = error { print(error) }
-            // if let result = result { print(result) }
-        }
+        terminalView?.send(txt: sender.input!)
     }
     
     
     @objc func goBackAction(_ sender: UIBarButtonItem) {
-        guard self.webView != nil else { return }
-        if self.webView!.canGoBack {
+        guard self.wasmWebView != nil else { return }
+        if self.wasmWebView!.canGoBack {
             let position = -1
-            if let backPageItem = self.webView!.backForwardList.item(at: position) {
-                self.webView!.go(to: backPageItem)
+            if let backPageItem = self.wasmWebView!.backForwardList.item(at: position) {
+                self.wasmWebView!.go(to: backPageItem)
             }
         }
     }
     
     @objc func goForwardAction(_ sender: UIBarButtonItem) {
-        guard self.webView != nil else { return }
-        if self.webView!.canGoForward {
+        guard self.wasmWebView != nil else { return }
+        if self.wasmWebView!.canGoForward {
             let position = 1
-            if let forwardPageItem = self.webView!.backForwardList.item(at: position) {
-                self.webView!.go(to: forwardPageItem)
+            if let forwardPageItem = self.wasmWebView!.backForwardList.item(at: position) {
+                self.wasmWebView!.go(to: forwardPageItem)
             }
         }
     }
@@ -2330,10 +2246,11 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         if (url.scheme == "file") {
             // Create a directory URL:
             let directoryURL = url.deletingLastPathComponent()
-            webView?.loadFileURL(url, allowingReadAccessTo: directoryURL)
+            wasmWebView?.loadFileURL(url, allowingReadAccessTo: directoryURL)
         } else {
-            webView?.load(URLRequest(url: url))
+            wasmWebView?.load(URLRequest(url: url))
         }
+        // TODO: display wasmWebView instead of terminalView
     }
     
     private func hideButton(tag: Int) -> Bool {
@@ -2367,6 +2284,11 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             closeWindow()
             // If we're here, closeWindow did not work. Clear window:
             // Calling "exit(0)" here results in a major crash (I tried).
+            // TODO: wipe content of terminalView, erase command history
+            self.terminalView?.feed(text: self.escape + "[2J" + self.escape + "[1;1H")
+            #if TODO
+            // If we're here, closeWindow did not work. Clear window:
+            // Calling "exit(0)" here results in a major crash (I tried).
             let infoCommand = "window.term_.wipeContents() ; window.printedContent = ''; window.term_.io.print('" + self.escape + "[2J'); window.term_.io.print('" + self.escape + "[1;1H'); window.commandArray = []; window.commandIndex = 0; window.maxCommandIndex = 0;"
             self.webView?.evaluateJavaScript(infoCommand) { (result, error) in
                 // if let error = error {
@@ -2376,6 +2298,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 //     print(result)
                 // }
             }
+            #endif
             // Also clear history:
             history = []
             // and directories used:
@@ -2428,7 +2351,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             self.stdin_file = fdopen(stdin_pipe.fileHandleForReading.fileDescriptor, "r")
             var counter = 0
             while (self.stdin_file == nil) && (counter < 5) {
-                self.outputToWebView(string: "Could not create an input stream, retrying (\(counter+1))\n")
+                self.terminalView?.feed(text: "Could not create an input stream, retrying (\(counter+1))\n")
                 stdin_pipe = Pipe()
                 self.stdin_file = fdopen(stdin_pipe.fileHandleForReading.fileDescriptor, "r")
                 if (counter > 2) {
@@ -2438,7 +2361,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 counter += 1
             }
             if (self.stdin_file == nil) {
-                self.outputToWebView(string: "Unable to create an input stream. I give up.\n")
+                self.terminalView?.feed(text: "Unable to create an input stream. I give up.\n")
                 return
             }
             self.stdin_file_input = stdin_pipe.fileHandleForWriting
@@ -2450,7 +2373,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             counter = 0
             self.stdout_file = fdopen(stdout_pipe.fileHandleForWriting.fileDescriptor, "w")
             while (self.stdout_file == nil) && (counter < 5) {
-                self.outputToWebView(string: "Could not create an output stream, retrying (\(counter+1))\n")
+                self.terminalView?.feed(text: "Could not create an output stream, retrying (\(counter+1))\n")
                 stdout_pipe = Pipe()
                 self.stdout_file = fdopen(stdout_pipe.fileHandleForWriting.fileDescriptor, "w")
                 if (counter > 2) {
@@ -2460,7 +2383,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 counter += 1
             }
             if (self.stdout_file == nil) {
-                self.outputToWebView(string: "Unable to create an output stream. I give up.\n")
+                self.terminalView?.feed(text: "Unable to create an output stream. I give up.\n")
                 return
             }
             // Call the following functions when data is written to stdout/stderr.
@@ -2505,6 +2428,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 var commandForWindow = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "'", with: "\\'").replacingOccurrences(of: "\n", with: "\\n")
                 let windowCommand = "window.commandRunning = '\(commandForWindow)';window.interactiveCommandRunning = isInteractive('\(commandForWindow)');\n"
                 DispatchQueue.main.async { // iOS 14 and 15: we need to communicate with the WkWebView in the main queue.
+                    #if TODO
                     self.webView?.evaluateJavaScript(windowCommand) { (result, error) in
                         // if let error = error {
                         //     print(error)
@@ -2513,11 +2437,12 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         //     print(result)
                         // }
                     }
+                    #endif
                     if #available(iOS 16.0, *) {
                         // Show buttons depending on commands:
                         // Hide all buttons with tag == noneTag, show all buttons that match.
                         if (useSystemToolbar) {
-                            self.webView?.inputAssistantItem.leadingBarButtonGroups.forEach { leftButtonGroup in
+                            self.terminalView?.inputAssistantItem.leadingBarButtonGroups.forEach { leftButtonGroup in
                                 if let representativeItem = leftButtonGroup.representativeItem {
                                     representativeItem.isHidden = self.hideButton(tag: representativeItem.tag)
                                 }
@@ -2525,7 +2450,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                                     button.isHidden = self.hideButton(tag: button.tag)
                                 }
                             }
-                            self.webView?.inputAssistantItem.trailingBarButtonGroups.forEach { rightButtonGroup in
+                            self.terminalView?.inputAssistantItem.trailingBarButtonGroups.forEach { rightButtonGroup in
                                 if let representativeItem = rightButtonGroup.representativeItem {
                                     representativeItem.isHidden = self.hideButton(tag: representativeItem.tag)
                                 }
@@ -2624,7 +2549,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 if #available(iOS 16.0, *) {
                     if (useSystemToolbar) {
                         // Show buttons after command is done:
-                        self.webView?.inputAssistantItem.leadingBarButtonGroups.forEach { leftButtonGroup in
+                        self.terminalView?.inputAssistantItem.leadingBarButtonGroups.forEach { leftButtonGroup in
                             if let representativeItem = leftButtonGroup.representativeItem {
                                 if (representativeItem.tag != 0) {
                                     representativeItem.isHidden = !(representativeItem.tag == self.noneTag)
@@ -2636,7 +2561,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                                 }
                             }
                         }
-                        self.webView?.inputAssistantItem.trailingBarButtonGroups.forEach { rightButtonGroup in
+                        self.terminalView?.inputAssistantItem.trailingBarButtonGroups.forEach { rightButtonGroup in
                             if let representativeItem = rightButtonGroup.representativeItem {
                                 if (representativeItem.tag != 0) {
                                     representativeItem.isHidden = !(representativeItem.tag == self.noneTag)
@@ -2674,6 +2599,9 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             // NSLog("Could not convert Javascript message: \(message.body)")
             return
         }
+        #if TODO
+        // Most commands are obsolete now, and will more to other parts
+        // A handful should be kept for when WasmWebView is at the front (and even then?)
         // NSLog("Received JS message: \(cmd)")
         // Make sure we're acting on the right session here:
         if (cmd.hasPrefix("shell:")) {
@@ -2711,7 +2639,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     }
                 } else {
                     var foundControl = false
-                    if let leftButtonGroups = webView?.inputAssistantItem.leadingBarButtonGroups {
+                    if let leftButtonGroups = terminalView?.inputAssistantItem.leadingBarButtonGroups {
                         for leftButtonGroup in leftButtonGroups {
                             for button in leftButtonGroup.barButtonItems {
                                 if title(button) == "control" {
@@ -2723,7 +2651,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         }
                     }
                     if (!foundControl) {
-                        if let rightButtonGroups = webView?.inputAssistantItem.trailingBarButtonGroups {
+                        if let rightButtonGroups = terminalView?.inputAssistantItem.trailingBarButtonGroups {
                             for rightButtonGroup in rightButtonGroups {
                                 for button in rightButtonGroup.barButtonItems {
                                     if title(button) == "control" {
@@ -3315,8 +3243,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             // NSLog("JavaScript message: \(message.body)")
             // print("JavaScript message: \(message.body)")
         }
+        #endif
     }
     
+    #if REMOVE_THIS
     private var webContentView: UIView? {
         for subview in (webView?.scrollView.subviews)! {
             if subview.classForCoder.description() == "WKContentView" {
@@ -3329,6 +3259,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         }
         return nil
     }
+    #endif
     
     func storeBookmark(fileURL: URL) {
         // Store the bookmark for this object:
@@ -3417,6 +3348,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     NSLog("Command to execute: " + commandSent)
                     // window.commandToExecute: too late for that (term_ is already created)
                     // executeCommand: too early for that. (keyboard is not ready yet)
+                    #if TOODO
                     commandSent = commandSent.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "'", with: "\\'").replacingOccurrences(of: "\n", with: "\\n")
                     let restoreCommand = "window.term_.io.println(\"Executing Shortcut: \(commandSent.replacingOccurrences(of: "\\n", with: "\\n\\r"))\");\nwindow.webkit.messageHandlers.aShell.postMessage('shell:' + '\(commandSent)');\n"
                     self.webView?.evaluateJavaScript(restoreCommand) { (result, error) in
@@ -3427,6 +3359,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                             // print(result)
                         }
                     }
+                    #endif
                 }
             }
         }
@@ -3465,15 +3398,17 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             NSLog("Setting identifier to \(session.persistentIdentifier)")
             ios_switchSession(self.persistentIdentifier?.toCString())
             ios_setContext(UnsafeMutableRawPointer(mutating: self.persistentIdentifier?.toCString()));
-            webView = contentView?.webview.webView
+            terminalView = contentView?.terminalview.view
+            terminalView?.terminalDelegate = self
+            // TODO: still useful when we move the webView to the front (how?)
             // add a contentController that is specific to each webview
-            webView?.configuration.userContentController = WKUserContentController()
-            webView?.configuration.userContentController.add(self, name: "aShell")
-            webView?.navigationDelegate = self
-            webView?.uiDelegate = self;
-            webView?.isAccessibilityElement = false
+            // webView?.configuration.userContentController = WKUserContentController()
+            // webView?.configuration.userContentController.add(self, name: "aShell")
+            // terminalView?.navigationDelegate = self
+            // terminalView?.uiDelegate = self;
+            terminalView?.isAccessibilityElement = false
             if #available(iOS 16.0, *) {
-                webView?.isFindInteractionEnabled = true
+                // terminalView?.isFindInteractionEnabled = true
             }
             // Is the app opened from a Shortcut?
             var startedFromShortcut = false
@@ -3485,16 +3420,17 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
             if (!toolbarShouldBeShown) {
                 showToolbar = false
-                self.webView?.addInputAccessoryView(toolbar: self.emptyToolbar)
+                self.terminalView!.inputAccessoryView = self.emptyToolbar
             } else {
                 generateToolbarButtons()
                 if (useSystemToolbar) {
                     showToolbar = false
-                    self.webView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
-                    self.webView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
+                    self.terminalView!.inputAccessoryView = self.emptyToolbar
+                    self.terminalView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
+                    self.terminalView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
                 } else {
                     showToolbar = true
-                    self.webView?.addInputAccessoryView(toolbar: self.editorToolbar)
+                    self.terminalView!.inputAccessoryView = self.editorToolbar
                 }
                 if #available(iOS 17, *) {
                     // Do not show the toolbar tip if the app has been started from a Shortcut:
@@ -3512,8 +3448,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                                     for await shouldDisplay in myToolbarTip.shouldDisplayUpdates {
                                         NSLog("myToolbarTip: \(shouldDisplay) status: \(myToolbarTip.status)")
                                         if shouldDisplay {
-                                            if (self.webView != nil) {
-                                                let controller = TipUIPopoverViewController(myToolbarTip, sourceItem: self.webView!)
+                                            if (self.terminalView != nil) {
+                                                let controller = TipUIPopoverViewController(myToolbarTip, sourceItem: self.terminalView!)
                                                 controller.popoverPresentationController?.canOverlapSourceViewRect = true
                                                 let rootVC = self.window?.rootViewController
                                                 rootVC?.present(controller, animated: false)
@@ -3597,6 +3533,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 javascriptCommand += "\"" + command + "\", "
             }
             javascriptCommand += "];"
+            #if TODO
             webView?.evaluateJavaScript(javascriptCommand) { (result, error) in
                 if error != nil {
                     // NSLog("Error in creating command list, line = \(javascriptCommand)")
@@ -3604,6 +3541,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 }
                 // if let result = result { print(result) }
             }
+            #endif
             // If .profile or .bashrc exist, load them:
             for configFileName in [".profile", ".bashrc"] {
                 var configFileUrl = try! FileManager().url(for: .documentDirectory,
@@ -3792,8 +3730,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 .handleEvents(receiveOutput: { notification in
                     NSLog("didBecomeKey: \(notification.name.rawValue): \(session.persistentIdentifier).")
                 })
-                .sink { _ in self.webView?.focus() }
-                .store(in: &cancellables)
+                // .sink { _ in self.webView?.focus() }
+                // .store(in: &cancellables)
             NotificationCenter.default
                 .publisher(for: UIWindow.didResignKeyNotification, object: window)
                 .merge(with: NotificationCenter.default
@@ -3801,8 +3739,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 .handleEvents(receiveOutput: { notification in
                     NSLog("didResignKey: \(notification.name.rawValue): \(session.persistentIdentifier).")
                 })
-                .sink { _ in self.webView?.blur() }
-                .store(in: &cancellables)
+                // .sink { _ in self.webView?.blur() }
+                // .store(in: &cancellables)
         }
     }
     
@@ -3914,12 +3852,14 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil)
                 } else {
                     // Not an iPad, so no requestSceneSessionActivation().
+                    #if TODO
                     let openFileCommand = "window.commandRunning = 'vim'; window.interactiveCommandRunning = true; "
                     NSLog("About to execute \(openFileCommand), webview: \(self.webView)")
                     self.webView?.evaluateJavaScript(openFileCommand) { (result, error) in
                         // if let error = error { print(error) }
                         // if let result = result { print(result) }
                     }
+                    #endif
                     installQueue.async {
                         self.executeCommand(command: "vim " + (fileURL.path.removingPercentEncoding!.replacingOccurrences(of: " ", with: "\\ ")))
                     }
@@ -4025,7 +3965,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // Called when the scene has moved from an inactive state to an active state.
         // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
         NSLog("sceneDidBecomeActive: \(self.persistentIdentifier).")
-        let traitCollection = webView!.traitCollection
+        let traitCollection = terminalView!.traitCollection
         // Set scene parameters (unless they were set before)
         let backgroundColor = terminalBackgroundColor ?? UIColor.systemBackground.resolvedColor(with: traitCollection)
         let foregroundColor = terminalForegroundColor ?? UIColor.placeholderText.resolvedColor(with: traitCollection)
@@ -4036,61 +3976,38 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         let cursorShape = terminalCursorShape ?? factoryCursorShape
         let fontLigature = terminalFontLigature ?? factoryFontLigature
         // Force writing all config to term. Used when we changed many parameters.
-        // Window.term_ does not always exist when sceneDidBecomeActive is called. We *also* set window.foregroundColor, and then use that when we create term.
-        webView!.tintColor = foregroundColor
-        webView!.backgroundColor = backgroundColor
-        let command1 = "window.foregroundColor = '" + foregroundColor.toHexString() + "'; window.backgroundColor = '" + backgroundColor.toHexString() + "'; window.cursorColor = '" + cursorColor.toHexString() + "'; window.cursorShape = '\(cursorShape)'; window.fontSize = '\(fontSize)' ; window.fontFamily = '\(fontName)';"
-        webView!.evaluateJavaScript(command1) { (result, error) in
-            /* if error != nil {
-                NSLog("Error in sceneDidBecomeActive, line = \(command1)")
-                print(error)
-            }
-            if result != nil {
-                NSLog("Return from sceneDidBecomeActive, line = \(command1)")
-                print(result)
-            } */
+        terminalView?.tintColor = foregroundColor
+        terminalView?.caretColor = cursorColor
+        terminalView?.backgroundColor = backgroundColor
+        terminalView?.getTerminal().foregroundColor = foregroundColor.toSwiftTermColor()
+        terminalView?.getTerminal().backgroundColor = backgroundColor.toSwiftTermColor()
+        terminalView?.getTerminal().cursorColor = cursorColor.toSwiftTermColor()
+        switch (cursorShape.lowercased()) {
+        case "block":
+            terminalView?.getTerminal().setCursorStyle(.blinkBlock)
+            break
+        case "bar":
+            terminalView?.getTerminal().setCursorStyle(.blinkBar)
+            break
+        case "underline":
+            terminalView?.getTerminal().setCursorStyle(.blinkUnderline)
+            break
+        default:
+            terminalView?.getTerminal().setCursorStyle(.blinkUnderline)
+            break
         }
-        // Current status: window.term_ is undefined here in iOS 15b1.
-        let command2 = "(window.term_ != undefined)"
-        webView!.evaluateJavaScript(command2) { (result, error) in
-            /* if let error = error {
-                NSLog("Error in sceneDidBecomeActive, line = \(command2)")
-                print(error)
-            }
-            if result != nil {
-                NSLog("Return from sceneDidBecomeActive, line = \(command2), result= \(result)")
-            } */
-            if let resultN = result as? Int {
-                if (resultN == 1) {
-                    // window.term_ exists, let's send commands:
-                    let command3 = "window.term_.setForegroundColor('" + foregroundColor.toHexString() + "'); window.term_.setBackgroundColor('" + backgroundColor.toHexString() + "'); window.term_.setCursorColor('" + cursorColor.toHexString() + "'); window.term_.setCursorShape('\(cursorShape)');window.fontSize = \(fontSize);window.term_.setFontSize(\(fontSize)); window.term_.setFontFamily('\(fontName)'); window.term_.scrollPort_.screen_.style.fontVariantLigatures = '\(fontLigature)';"
-                    self.webView!.evaluateJavaScript(command3) { (result, error) in
-                        /* if error != nil {
-                            NSLog("Error in sceneDidBecomeActive, line = \(command3)")
-                            print(error)
-                        }
-                        if result != nil {
-                            NSLog("Return from sceneDidBecomeActive, line = \(command3)")
-                            print(result)
-                        } */
-                    }
-                    let command4 = "window.term_.prefs_.setSync('foreground-color', '" + foregroundColor.toHexString() + "'); window.term_.prefs_.setSync('background-color', '" + backgroundColor.toHexString() + "'); window.term_.prefs_.setSync('cursor-color', '" + cursorColor.toHexString() + "'); window.term_.prefs_.setSync('cursor-shape', '\(cursorShape)'); window.term_.prefs_.setSync('font-size', '\(fontSize)'); window.term_.prefs_.setSync('font-family', '\(fontName)');  window.term_.scrollPort_.isScrolledEnd = true;"
-                    self.webView!.evaluateJavaScript(command4) { (result, error) in
-                        /* if error != nil {
-                            NSLog("Error in sceneDidBecomeActive, line = \(command4)")
-                            print(error)
-                        }
-                        if result != nil {
-                            NSLog("Return from sceneDidBecomeActive, line = \(command4)")
-                            print(result)
-                        } */
-                    }
-                }
-            }
+        // TODO: Ligatures are enabled by default on iOS, they're a property of NSAttributeString, not the font.
+        if let terminalFont = UIFont(name: fontName, size: CGFloat(fontSize)) {
+            terminalView?.font = terminalFont
         }
         setEnvironmentFGBG(foregroundColor: foregroundColor, backgroundColor: backgroundColor)
         if (showKeyboardAtStartup) {
-            // webView!.keyboardDisplayRequiresUserAction = false
+            if let termView = terminalView {
+                if !termView.isFirstResponder {
+                    _ = termView.becomeFirstResponder()
+                }
+            }
+            printPrompt()
         }
         activateVoiceOver(value: UIAccessibility.isVoiceOverRunning)
     }
@@ -4121,22 +4038,24 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         NSLog("sceneWillEnterForeground: \(self.persistentIdentifier). userActivity: \(userActivity)")
         if (!toolbarShouldBeShown) {
             showToolbar = false
-            self.webView!.addInputAccessoryView(toolbar: self.emptyToolbar)
+            self.terminalView!.inputAccessoryView = self.emptyToolbar
         } else {
             generateToolbarButtons()
             if (useSystemToolbar) {
                 showToolbar = false
-                self.webView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
-                self.webView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
+                self.terminalView!.inputAccessoryView = self.emptyToolbar
+                self.terminalView?.inputAssistantItem.leadingBarButtonGroups = self.leftButtonGroups
+                self.terminalView?.inputAssistantItem.trailingBarButtonGroups = self.rightButtonGroups
             } else {
                 showToolbar = true
-                self.webView!.addInputAccessoryView(toolbar: self.editorToolbar)
+                self.terminalView!.inputAccessoryView = self.editorToolbar
             }
             if #available(iOS 17, *) {
                 NSLog("myToolbarTip status: \(myToolbarTip.status)")
                 if (myToolbarTip.shouldDisplay) {
-                    if (self.webView != nil) {
-                        let controller = TipUIPopoverViewController(myToolbarTip, sourceItem: self.webView!)
+                    if (self.terminalView != nil) {
+                        // TODO: re-check placement of tips
+                        let controller = TipUIPopoverViewController(myToolbarTip, sourceItem: self.terminalView!)
                         controller.popoverPresentationController?.canOverlapSourceViewRect = true
                         let rootVC = self.window?.rootViewController
                         rootVC?.present(controller, animated: false)
@@ -4375,6 +4294,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 }
                 // print("printedContent restored = \(terminalData.count) End")
                 // print("printedContent restored = \(terminalData) End")
+                #if TODO
                 webView!.evaluateJavaScript("window.setWindowContent",
                                             completionHandler: { (function: Any?, error: Error?) in
                     if (error == nil) {
@@ -4396,8 +4316,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         }
                     }
                 })
+                #endif
             } else {
                 // No terminal data stored, reset things:
+                #if TODO
                 let javascriptCommand = "window.promptMessage='\(self.parsePrompt())'; window.printedContent = '';"
                 webView!.evaluateJavaScript(javascriptCommand) { (result, error) in
                     /* if error != nil {
@@ -4409,9 +4331,11 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         print(result)
                     } */
                 }
+                #endif
             }
         } else {
             // The user does not want the terminal to be restored:
+            #if TODO
             let javascriptCommand = "window.promptMessage='\(self.parsePrompt())'; window.printedContent = '';"
             webView!.evaluateJavaScript(javascriptCommand) { (result, error) in
                 if error != nil {
@@ -4423,6 +4347,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     // print(result)
                 }
             }
+            #endif
         }
         // restart the current command if one was running before
         let currentCommandData = userInfo["currentCommand"]
@@ -4464,10 +4389,12 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                             let restoreCommand = "window.webkit.messageHandlers.aShell.postMessage('shell:' + '\(commandSent)');\nwindow.commandRunning = '\(commandSent)';\n"
                             currentCommand = commandSent
                             NSLog("Calling command: \(restoreCommand)")
+                            #if TODO
                             self.webView?.evaluateJavaScript(restoreCommand) { (result, error) in
                                 // if let error = error { print(error) }
                                 // if let result = result { print(result) }
                             }
+                            #endif
                         }
                     } else {
                         NSLog("Could not find session file at \(sessionFile)")
@@ -4482,10 +4409,12 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         let restoreCommand = "window.webkit.messageHandlers.aShell.postMessage('shell:' + '\(commandSent)');\nwindow.commandRunning = '\(commandSent)';\n"
                         currentCommand = commandSent
                         NSLog("Calling command: \(restoreCommand)")
+                        #if TODO
                         self.webView?.evaluateJavaScript(restoreCommand) { (result, error) in
                             // if let error = error { print(error) }
                             // if let result = result { print(result) }
                         }
+                        #endif
                     }
                 }
             }
@@ -4496,6 +4425,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 // On iPadOS 16, windows going into the background and back to the foreground
                 // sometimes change their font size. This tries to enforce it back:
                 let fontSize = terminalFontSize ?? factoryFontSize
+                #if TODO
                 let fontSizeCommand = "window.fontSize = \(fontSize);window.term_.setFontSize(\(fontSize));"
                 DispatchQueue.main.async {
                     self.webView?.evaluateJavaScript(fontSizeCommand) { (result, error) in
@@ -4503,6 +4433,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         if let result = result { print(result) }
                     }
                 }
+                #endif
             }
         }
         // Re-enable video tracks when application enters foreground:
@@ -4629,6 +4560,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // An iPad pro screen is 5000 characters, so this is 5 screens of content.
         // When window.printedContent is too large, this function does not return before the session is terminated.
         // Note: if this fails, check window.printedContent length at the start/end of a command, not after each print.
+        #if TODO
         webView!.evaluateJavaScript("window.printedContent",
                                     completionHandler: { (printedContent: Any?, error: Error?) in
                                         if let error = error {
@@ -4640,6 +4572,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                                             // print("printedContent saved: \(printedContent).")
                                         }
                                     })
+        #endif
         // Keep sound going when going in background, by disabling video tracks:
         // https://stackoverflow.com/questions/64055966/ios-14-play-audio-from-video-in-background/64753248#64753248
         // But only if Picture-in-Picture has not started
@@ -4661,60 +4594,21 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     private var dataBuffer = Data()
     
     func activateVoiceOver(value: Bool) {
-        guard (webView != nil) else { return }
-        webView?.isAccessibilityElement = false
-        let command = "window.voiceOver = \(value);"
-        // NSLog(command)
-        DispatchQueue.main.async {
-            self.webView?.evaluateJavaScript(command) { (result, error) in
-                if let error = error {
-                    NSLog("Error in activateVoiceOver.")
-                    // print(error)
-                }
-                // if let result = result { print(result) }
-            }
-        }
-        let command2 = "if (window.term_ != undefined) { window.term_.setAccessibilityEnabled(window.voiceOver); }"
-        // NSLog(command2)
-        DispatchQueue.main.async {
-            self.webView?.evaluateJavaScript(command2) { (result, error) in
-                if let error = error {
-                    NSLog("Error in activateVoiceOver.")
-                    // print(error)
-                }
-                // if let result = result { print(result) }
-            }
-        }
+        guard (terminalView != nil) else { return }
+        terminalView?.isAccessibilityElement = value
     }
     
     func outputToWebView(string: String) {
-        guard (webView != nil) else { return }
-        if (webView?.url?.path == Bundle.main.resourcePath! + "/hterm.html") {
-            // Sanitize the output string to it can be sent to javascript:
-            let parsedString = string.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\n", with: "\\n\\r").replacingOccurrences(of: endOfTransmission, with: "")
-            // NSLog("outputToWebView: \(parsedString)")
-            // This may cause several \r in a row
-            let command = "window.term_.io.print(\"" + parsedString + "\");"
-            DispatchQueue.main.async {
-                self.webView!.evaluateJavaScript(command) { (result, error) in
-                    if let error = error {
-                        NSLog("Error in print; offending line = \(parsedString), error = \(error)")
-                        // print(error)
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
-        } else {
-            // NSLog("Current URL: \(webView?.url?.path)")
-            // NSLog("Not printing (because offline): \(string)")
-            // When debugging Jupyter:
-            print(string)
+        guard (terminalView != nil) else { return }
+        terminalView?.feed(text: string.replacingOccurrences(of:"\n", with: "\n\r")) // prints the string
+        
+        #if TODO // when webview is visible:
             if (bufferedOutput == nil) {
                 bufferedOutput = string
             } else {
                 bufferedOutput! += string
             }
-        }
+        #endif
     }
     
     private func onStdoutButton(_ stdout: FileHandle) {
@@ -4723,7 +4617,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         guard (data.count > 0) else {
             return
         }
-        guard (webView != nil) else { return }
+        guard (terminalView != nil) else { return }
         if var string = String(data: data, encoding: String.Encoding.utf8) {
             // Remove all trailing \n\r (but keep those inside the string)
             if (string.contains(endOfTransmission)) {
@@ -4733,17 +4627,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             while (string.hasSuffix("\n") || string.hasSuffix("\r")) {
                 string.removeLast("\n".count)
             }
-            // Sanitize the output string to it can be sent to javascript:
-            let parsedString = string.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\r", with: "\\r").replacingOccurrences(of: "\n", with: "\\n\\r")
-            DispatchQueue.main.async {
-                self.webView?.evaluateJavaScript("window.term_.io.onVTKeystroke(\"" + parsedString + "\");") { (result, error) in
-                    if let error = error {
-                        NSLog("Error in onStdoutButton; offending line = \(parsedString), error = \(error)")
-                        // print(error)
-                    }
-                    // if let result = result { print(result) }
-                }
-            }
+            terminalView?.feed(text: string)
         }
     }
     
@@ -4814,6 +4698,119 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
         }
     }
+
+    // None of these are called.
+    // TerminalViewDelegate stubs:
+    func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+        ios_setWindowSize(Int32(newCols), Int32(newRows), self.persistentIdentifier?.toCString())
+        setenv("COLUMNS", "\(newCols)".toCString(), 1)
+        setenv("LINES", "\(newRows)".toCString(), 1)
+    }
+    
+    func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
+        // Nope
+    }
+    
+    func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {
+        NSLog("hostCurrentDirectoryUpdate: \(directory)")
+    }
+    
+    func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
+        // This is where I treat the incoming keypress
+        // .feed(byteArray:) doesn't work with compose emojis
+        // .feed(text:) doesn't work with compose emojis
+        // .send(): infinite loop
+        // .insertText(): infinite loop
+        if let string = String (bytes: data, encoding: .utf8) {
+            NSLog("send string: \(string)")
+            if (currentCommand != "") {
+                // There is a command running, we send the data to its stdin thread
+                // TODO: add the ios_pager() case and interactive input case.
+                if (javascriptRunning && (thread_stdin_copy != nil)) {
+                    stdinString += string
+                    return
+                }
+                if (string == endOfTransmission) {
+                    // There is a webAssembly command running, do not close stdin.
+                    // Stop standard input for the command:
+                    guard stdin_file_input != nil else {
+                        // no command running, maybe it ended without us knowing:
+                        printPrompt()
+                        return
+                    }
+                    do {
+                        try stdin_file_input?.close()
+                    }
+                    catch {
+                        // NSLog("Could not close stdin input.")
+                    }
+                    stdin_file_input = nil
+                } else if (string == interrupt) {
+                    // Calling ios_kill while executing webAssembly or JavaScript is a bad idea.
+                    // Do we have a way to interrupt JS execution in WkWebView?
+                    if (!javascriptRunning) {
+                        ios_kill() // TODO: add printPrompt() here if no command running
+                    }
+                } else {
+                    guard stdin_file_input != nil else { return }
+                    guard let dataUtf8 = string.data(using: .utf8) else { return }
+                    // TODO: don't send data if pipe already closed (^D followed by another key)
+                    // (store a variable that says the pipe has been closed)
+                    // NSLog("Writing (not interactive) \(command) to stdin")
+                    stdin_file_input?.write(dataUtf8)
+                }
+            } else {
+                // Need: cursorPosition (of course)
+                // Need: history (for up/down arrows)
+                // TODO: autocomplete, arrows, delete
+                // TODO: emojis, japanese characters
+                // See if send() is different in SwiftTerm
+                if (string == "\u{7f}") {
+                    terminalView?.feed(text: escape + "[D") // left arrow
+                } else {
+                    terminalView?.feed(text: string) // prints the string
+                }
+                if (string == "\u{7f}") {
+                    commandLine.removeLast()
+                    NSLog("commandLine: \(commandLine)")
+                } else if (string == carriageReturn) {
+                    executeCommand(command: commandLine)
+                    commandLine = ""
+                    terminalView?.feed(text: "\n\r")
+                } else if (string.first != escape.first) {
+                    commandLine += string
+                }
+            }
+        } else {
+            NSLog("Failure of conversion: \(data)")
+        }
+    }
+    
+    func scrolled(source: SwiftTerm.TerminalView, position: Double) {
+        //
+    }
+    
+    func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String : String]) {
+        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            if let url = NSURLComponents(string: fixedup) {
+                if let nested = url.url {
+                    UIApplication.shared.open (nested)
+                }
+            }
+        }
+    }
+    
+    func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
+        if let str = String (bytes: content, encoding: .utf8) {
+            UIPasteboard.general.string = str
+        }
+    }
+    
+    func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
+        //
+    }
+    
+
 }
     
 extension SceneDelegate: AVPlayerViewControllerDelegate {
@@ -5734,13 +5731,6 @@ extension SceneDelegate: WKUIDelegate {
                     for scene in UIApplication.shared.connectedScenes {
                         if let delegate: SceneDelegate = scene.delegate as? SceneDelegate {
                             delegate.wasmWebView?.reload()
-                            var port = 8334
-                            if (appVersion != "a-Shell-mini") {
-                                port = 8443
-                            }
-                            if (delegate.webView?.url?.host == "127.0.0.1") && (delegate.webView?.url?.port == port) {
-                                delegate.webView?.reload()
-                            }
                         }
                     }
                     return

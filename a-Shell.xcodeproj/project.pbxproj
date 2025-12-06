@@ -173,6 +173,7 @@
 		224A916B2ADD0999006DB9CC /* a-Shell-mini-Intents.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 22178EF8257BBBA4008EB2B4 /* a-Shell-mini-Intents.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		224A916C2ADD0999006DB9CC /* a-Shell-mini-IntentsUI.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 22178F01257BBBA5008EB2B4 /* a-Shell-mini-IntentsUI.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		224C24FA2C94238900DE430E /* blink.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 220F18872C7C81D7007090F8 /* blink.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		224DCFC92EE48B9500D1D8AC /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; fileRef = 224DCFC82EE48B8000D1D8AC /* SwiftTerm */; };
 		224DF74C2B76429B00F13C58 /* ssh_agent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 224DF74B2B76428800F13C58 /* ssh_agent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2250FDAC281D29A7007C25D1 /* terminfo in Resources */ = {isa = PBXBuildFile; fileRef = 22B114762817CEA200A5BF16 /* terminfo */; };
 		225177C8231663430084B9C1 /* ListPythonFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225177C7231663430084B9C1 /* ListPythonFiles.swift */; };
@@ -956,9 +957,6 @@
 		22F87DB32EB8A9A3003251CC /* Kitura in Frameworks */ = {isa = PBXBuildFile; productRef = 22F87DB22EB8A9A3003251CC /* Kitura */; };
 		22F87DB62EB8B3B7003251CC /* localCertificate.pfx in Resources */ = {isa = PBXBuildFile; fileRef = 2213DCB72BDE7314008BD5F2 /* localCertificate.pfx */; };
 		22F87DB72EB8B3C6003251CC /* localCertificate.pfx in Resources */ = {isa = PBXBuildFile; fileRef = 2213DCB72BDE7314008BD5F2 /* localCertificate.pfx */; };
-		22FB8FC02E9BC2E500FDF274 /* extensionPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22FB8FBF2E9BC2D500FDF274 /* extensionPoint.swift */; };
-		22FB8FC12E9BC2E500FDF274 /* extensionPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22FB8FBF2E9BC2D500FDF274 /* extensionPoint.swift */; };
-		22FB8FC22E9BC2E500FDF274 /* extensionPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22FB8FBF2E9BC2D500FDF274 /* extensionPoint.swift */; };
 		22FFB44229E87D950054F01F /* require_jscore.js in Resources */ = {isa = PBXBuildFile; fileRef = 22FFB44129E87D920054F01F /* require_jscore.js */; };
 		22FFB44429E88AE80054F01F /* url-polyfill.js in Resources */ = {isa = PBXBuildFile; fileRef = 22FFB44329E88AE60054F01F /* url-polyfill.js */; };
 		6BD953662BFFCC0C00C2508F /* PutFileIntentHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD953652BFFCC0C00C2508F /* PutFileIntentHandler.swift */; };
@@ -1949,6 +1947,7 @@
 		2249E1392E7546D2003F03EE /* Python-_cffi_backend.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = "Python-_cffi_backend.framework"; path = "Resources/Frameworks/Python-_cffi_backend.framework"; sourceTree = SOURCE_ROOT; };
 		224A91702ADD0999006DB9CC /* a-Shell-noPython.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "a-Shell-noPython.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		224D10BA22CB247900A234EE /* hterm.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = hterm.html; sourceTree = "<group>"; };
+		224DCFC82EE48B8000D1D8AC /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = SwiftTerm; sourceTree = "<group>"; };
 		224DF74B2B76428800F13C58 /* ssh_agent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ssh_agent.xcframework; path = xcfs/.build/artifacts/xcfs/ssh_agent/ssh_agent.xcframework; sourceTree = "<group>"; };
 		225177C7231663430084B9C1 /* ListPythonFiles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ListPythonFiles.swift; sourceTree = "<group>"; };
 		225478B52B7380A5005041FF /* ssh_cmdA.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ssh_cmdA.xcframework; path = xcfs/.build/artifacts/xcfs/ssh_cmdA/ssh_cmdA.xcframework; sourceTree = "<group>"; };
@@ -2709,7 +2708,6 @@
 		22F20174264E81E1004FBA5C /* perlA.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = perlA.xcframework; path = xcfs/.build/artifacts/xcfs/perlA/perlA.xcframework; sourceTree = SOURCE_ROOT; };
 		22F20177265260B7004FBA5C /* perlB.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = perlB.xcframework; path = xcfs/.build/artifacts/xcfs/perlB/perlB.xcframework; sourceTree = SOURCE_ROOT; };
 		22F75D40265FA3500056AFD2 /* xxd.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = xxd.xcframework; path = xcfs/.build/artifacts/xcfs/xxd/xxd.xcframework; sourceTree = SOURCE_ROOT; };
-		22FB8FBF2E9BC2D500FDF274 /* extensionPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = extensionPoint.swift; sourceTree = "<group>"; };
 		22FFB44129E87D920054F01F /* require_jscore.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = require_jscore.js; sourceTree = "<group>"; };
 		22FFB44329E88AE60054F01F /* url-polyfill.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "url-polyfill.js"; sourceTree = "<group>"; };
 		6BD953652BFFCC0C00C2508F /* PutFileIntentHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PutFileIntentHandler.swift; sourceTree = "<group>"; };
@@ -2760,6 +2758,7 @@
 			files = (
 				22F87DB32EB8A9A3003251CC /* Kitura in Frameworks */,
 				228E13F625C95F400065D825 /* ios_system.xcframework in Frameworks */,
+				224DCFC92EE48B9500D1D8AC /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2856,6 +2855,7 @@
 				22178EF9257BBBA4008EB2B4 /* a-Shell-mini-Intents */,
 				22178F03257BBBA5008EB2B4 /* a-Shell-mini-IntentsUI */,
 				22984EEB22C93DBC00069497 /* Products */,
+				224DCFC82EE48B8000D1D8AC /* SwiftTerm */,
 				22B1B80D22CB9A5A00F7C452 /* Frameworks */,
 				2271BAFE2D8B064D00A809E5 /* a-Shell-noPython copy-Info.plist */,
 				223AF28E2D8B2E2300A4A62D /* a-Shell-mini copy2-Info.plist */,
@@ -2885,7 +2885,6 @@
 				22D23117231940B2005B0C12 /* ExtraCommands.swift */,
 				22984EEF22C93DBC00069497 /* SceneDelegate.swift */,
 				22984EF122C93DBC00069497 /* ContentView.swift */,
-				22FB8FBF2E9BC2D500FDF274 /* extensionPoint.swift */,
 				2208ACC822D24703003985D6 /* WkWebViewExtension.swift */,
 				22BF62282314223D00FEA585 /* WKWebView+KeyCommands.swift */,
 				8916088F2713056A00CED1C9 /* KBWebViewBase.h */,
@@ -4197,7 +4196,6 @@
 				6BD953682BFFCC0C00C2508F /* PutFileIntentHandler.swift in Sources */,
 				224A90442ADD0999006DB9CC /* WKWebView+KeyCommands.swift in Sources */,
 				226FBEDA2C1257B000400751 /* jsc.swift in Sources */,
-				22FB8FC22E9BC2E500FDF274 /* extensionPoint.swift in Sources */,
 				224A90452ADD0999006DB9CC /* UIDevice+Name.swift in Sources */,
 				224A90462ADD0999006DB9CC /* String+C.swift in Sources */,
 				224A90472ADD0999006DB9CC /* ContentView.swift in Sources */,
@@ -4225,7 +4223,6 @@
 				6BD953662BFFCC0C00C2508F /* PutFileIntentHandler.swift in Sources */,
 				22BF62292314223D00FEA585 /* WKWebView+KeyCommands.swift in Sources */,
 				226FBED82C1257B000400751 /* jsc.swift in Sources */,
-				22FB8FC02E9BC2E500FDF274 /* extensionPoint.swift in Sources */,
 				2208ACC522D2026E003985D6 /* UIDevice+Name.swift in Sources */,
 				2208ACBF22CCE57E003985D6 /* String+C.swift in Sources */,
 				22984EF222C93DBC00069497 /* ContentView.swift in Sources */,
@@ -4253,7 +4250,6 @@
 				6BD953672BFFCC0C00C2508F /* PutFileIntentHandler.swift in Sources */,
 				229D247E257931E4004A78AC /* WKWebView+KeyCommands.swift in Sources */,
 				226FBED92C1257B000400751 /* jsc.swift in Sources */,
-				22FB8FC12E9BC2E500FDF274 /* extensionPoint.swift in Sources */,
 				229D247F257931E4004A78AC /* UIDevice+Name.swift in Sources */,
 				229D2480257931E4004A78AC /* String+C.swift in Sources */,
 				229D2481257931E4004A78AC /* ContentView.swift in Sources */,
@@ -4702,7 +4698,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "a-Shell/a-Shell.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 515;
+				CURRENT_PROJECT_VERSION = 516;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_ASSET_PATHS = "a-Shell/Preview\\ Content";
 				DEVELOPMENT_TEAM = VG8Z23C8YL;
@@ -4753,7 +4749,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "a-Shell/a-Shell.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 515;
+				CURRENT_PROJECT_VERSION = 516;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_ASSET_PATHS = "a-Shell/Preview\\ Content";
 				DEVELOPMENT_TEAM = VG8Z23C8YL;
@@ -4803,7 +4799,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "a-Shell/a-Shell.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 515;
+				CURRENT_PROJECT_VERSION = 516;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_ASSET_PATHS = "a-Shell/Preview\\ Content";
 				DEVELOPMENT_TEAM = VG8Z23C8YL;
@@ -4858,7 +4854,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "a-Shell/a-Shell.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 515;
+				CURRENT_PROJECT_VERSION = 516;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_ASSET_PATHS = "a-Shell/Preview\\ Content";
 				DEVELOPMENT_TEAM = VG8Z23C8YL;

@@ -44,12 +44,12 @@ extension WKWebView {
                         }
                         return
                     }
-                    if delegate.webView == self {
+                    if delegate.terminalView == self {
                         NSLog("Active WebView, Scene ID: \(scene.session.persistentIdentifier)")
                         activateNextWindow = true
                         options.requestingScene = scene
                     } else {
-                        NSLog("Not-active WebView, Scene ID: \(scene.session.persistentIdentifier)")
+                        NSLog("Not-active TerminalView, Scene ID: \(scene.session.persistentIdentifier)")
                     }
                 }
             }
@@ -69,7 +69,7 @@ extension WKWebView {
     @objc private func closeWindow(_ sender: UIBarButtonItem) {
         for scene in UIApplication.shared.connectedScenes {
             if let delegate = scene.delegate as? SceneDelegate {
-                if delegate.webView == self {
+                if delegate.terminalView == self {
                     delegate.closeWindow()
                     return
                 }
@@ -101,7 +101,7 @@ extension WKWebView {
         NSLog("Increase event received")
         for scene in UIApplication.shared.connectedScenes {
             if let delegate = scene.delegate as? SceneDelegate {
-                if delegate.webView == self {
+                if delegate.terminalView == self {
                     let fontSize = delegate.terminalFontSize ?? factoryFontSize
                     delegate.configWindow(fontSize: fontSize + 1, fontName: nil, backgroundColor: nil, foregroundColor: nil, cursorColor: nil, cursorShape: nil, fontLigature: nil)
                     return
@@ -114,7 +114,7 @@ extension WKWebView {
         NSLog("Decrease event received")
         for scene in UIApplication.shared.connectedScenes {
             if let delegate = scene.delegate as? SceneDelegate {
-                if delegate.webView == self {
+                if delegate.terminalView == self {
                     let fontSize = delegate.terminalFontSize ?? factoryFontSize
                     delegate.configWindow(fontSize: fontSize - 1, fontName: nil, backgroundColor: nil, foregroundColor: nil, cursorColor: nil, cursorShape: nil, fontLigature: nil)
                     return

@@ -7,7 +7,7 @@
 //
 
 import SwiftUI
-import WebKit
+import SwiftTerm
 
 // SwiftUI extension for fullscreen rendering
 public enum ViewBehavior: Int {
@@ -27,6 +27,24 @@ extension View {
     }
 }
 
+struct Termview : UIViewRepresentable {
+    let view: TerminalView
+    
+    init() {
+        view = TerminalView()
+    }
+    
+    func makeUIView(context: Context) -> UIView {
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context)
+    {
+        
+    }
+}
+
+
 public var toolbarShouldBeShown = true
 public var useSystemToolbar = false
 public var showToolbar = true
@@ -36,61 +54,12 @@ public var showKeyboardAtStartup = true
 // Make this a user-defined setup, with "ignoreSafeArea" the default.
 public var viewBehavior: ViewBehavior = .ignoreSafeArea
 
-struct Webview : UIViewRepresentable {
-    typealias WebViewType = KBWebViewBase
-
-    let webView: WebViewType
-
-    init() {
-        let config = WKWebViewConfiguration()
-        config.preferences.javaScriptEnabled = true
-        config.preferences.javaScriptCanOpenWindowsAutomatically = true
-        if #available(iOS 15.4, *) {
-            config.preferences.isElementFullscreenEnabled = true
-        }
-        if #available(iOS 14.5, *) {
-            config.preferences.isTextInteractionEnabled = true
-        }
-        config.preferences.setValue(true as Bool, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(true as Bool, forKey: "allowUniversalAccessFromFileURLs")
-        // Does not change anything either way (??? !!!)
-        config.preferences.setValue(true as Bool, forKey: "shouldAllowUserInstalledFonts")
-        config.selectionGranularity = .character; // Could be .dynamic
-        // let preferences = WKWebpagePreferences()
-        // preferences.allowsContentJavaScript = true
-        webView = .init(frame: .zero, configuration: config)
-        if #available(iOS 16.4, *) {
-            webView.isInspectable = true
-        }
-        webView.allowsBackForwardNavigationGestures = true
-        if #available(iOS 15.0, *) {
-            webView.keyboardLayoutGuide.topAnchor.constraint(equalTo: webView.bottomAnchor).isActive = true
-            // This is necessary to allow the various edge constraints to engage.
-            webView.keyboardLayoutGuide.followsUndockedKeyboard = true
-        }
-    }
-    
-    func makeUIView(context: Context) -> WebViewType {
-        return webView
-    }
-
-    func updateUIView(_ uiView: WebViewType, context: Context) {
-        if (uiView.url != nil) { return } // Already loaded the page
-        let htermFilePath = Bundle.main.path(forResource: "hterm", ofType: "html")
-        let htermURL = URL(fileURLWithPath: htermFilePath!)
-        let directoryURL = htermURL.deletingLastPathComponent()
-        uiView.isOpaque = false
-        uiView.loadFileURL(htermURL, allowingReadAccessTo: directoryURL)
-    }
-}
-
-
 struct ContentView: View {
     @State private var keyboardHeight: CGFloat = 0
     @State private var keyboardWidth: CGFloat = 0
     // @State private var viewBehavior: ViewBehavior = .ignoreSafeArea
     
-    let webview = Webview()
+    let terminalview = Termview()
     
     // Adapt window size to keyboard height, see:
     // https://stackoverflow.com/questions/56491881/move-textfield-up-when-thekeyboard-has-appeared-by-using-swiftui-ios
@@ -135,7 +104,7 @@ struct ContentView: View {
     
     var body: some View {
         // resize depending on keyboard. Specify size (.frame) instead of padding.
-        webview.onReceive(keyboardChangePublisher) {
+        terminalview.onReceive(keyboardChangePublisher) {
             self.keyboardHeight = $0
             // NSLog("keyboardHeight: \(keyboardHeight)")
             // NSLog("Bounds \(webview.webView.coordinateSpace.bounds)")
@@ -143,12 +112,7 @@ struct ContentView: View {
         }
         .padding(.top, 0) // Important, to set the size of the view
         .if(viewBehavior == .original || viewBehavior == .ignoreSafeArea) {
-            // If not displaying hterm and not displaying the keyboard, hide the space for the toolbar
-            if (webview.webView.url?.path != Bundle.main.resourcePath! + "/hterm.html") && (keyboardHeight <= 40) {
-                $0.padding(.bottom, 0)
-            } else {
                 $0.padding(.bottom, keyboardHeight)
-            }
         }
         .if((viewBehavior == .ignoreSafeArea || viewBehavior == .fullScreen)) {
             $0.ignoresSafeArea(.container, edges: .bottom)
