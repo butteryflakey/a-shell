@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -17,6 +17,7 @@
 		220F36522BC458C900842FEE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 220F36512BC458C800842FEE /* PrivacyInfo.xcprivacy */; };
 		220F36532BC458C900842FEE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 220F36512BC458C800842FEE /* PrivacyInfo.xcprivacy */; };
 		220F36552BC7FADA00842FEE /* llvmDictionary.plist in Resources */ = {isa = PBXBuildFile; fileRef = 220F36542BC7FAD800842FEE /* llvmDictionary.plist */; };
+		2213EE132EE4A148001F0114 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 2213EE122EE4A148001F0114 /* SwiftTerm */; };
 		221642752B7C05CB00043766 /* ssh_agent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 224DF74B2B76428800F13C58 /* ssh_agent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		221642762B7C05EE00043766 /* ssh_agent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 224DF74B2B76428800F13C58 /* ssh_agent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		22178EA5257A7A79008EB2B4 /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 22178EA4257A7A77008EB2B4 /* node_modules */; };
@@ -173,7 +174,6 @@
 		224A916B2ADD0999006DB9CC /* a-Shell-mini-Intents.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 22178EF8257BBBA4008EB2B4 /* a-Shell-mini-Intents.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		224A916C2ADD0999006DB9CC /* a-Shell-mini-IntentsUI.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 22178F01257BBBA5008EB2B4 /* a-Shell-mini-IntentsUI.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		224C24FA2C94238900DE430E /* blink.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 220F18872C7C81D7007090F8 /* blink.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		224DCFC92EE48B9500D1D8AC /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; fileRef = 224DCFC82EE48B8000D1D8AC /* SwiftTerm */; };
 		224DF74C2B76429B00F13C58 /* ssh_agent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 224DF74B2B76428800F13C58 /* ssh_agent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2250FDAC281D29A7007C25D1 /* terminfo in Resources */ = {isa = PBXBuildFile; fileRef = 22B114762817CEA200A5BF16 /* terminfo */; };
 		225177C8231663430084B9C1 /* ListPythonFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225177C7231663430084B9C1 /* ListPythonFiles.swift */; };
@@ -1947,7 +1947,6 @@
 		2249E1392E7546D2003F03EE /* Python-_cffi_backend.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = "Python-_cffi_backend.framework"; path = "Resources/Frameworks/Python-_cffi_backend.framework"; sourceTree = SOURCE_ROOT; };
 		224A91702ADD0999006DB9CC /* a-Shell-noPython.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "a-Shell-noPython.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		224D10BA22CB247900A234EE /* hterm.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = hterm.html; sourceTree = "<group>"; };
-		224DCFC82EE48B8000D1D8AC /* SwiftTerm */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = SwiftTerm; sourceTree = "<group>"; };
 		224DF74B2B76428800F13C58 /* ssh_agent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ssh_agent.xcframework; path = xcfs/.build/artifacts/xcfs/ssh_agent/ssh_agent.xcframework; sourceTree = "<group>"; };
 		225177C7231663430084B9C1 /* ListPythonFiles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ListPythonFiles.swift; sourceTree = "<group>"; };
 		225478B52B7380A5005041FF /* ssh_cmdA.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ssh_cmdA.xcframework; path = xcfs/.build/artifacts/xcfs/ssh_cmdA/ssh_cmdA.xcframework; sourceTree = "<group>"; };
@@ -2758,7 +2757,7 @@
 			files = (
 				22F87DB32EB8A9A3003251CC /* Kitura in Frameworks */,
 				228E13F625C95F400065D825 /* ios_system.xcframework in Frameworks */,
-				224DCFC92EE48B9500D1D8AC /* SwiftTerm in Frameworks */,
+				2213EE132EE4A148001F0114 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2855,7 +2854,6 @@
 				22178EF9257BBBA4008EB2B4 /* a-Shell-mini-Intents */,
 				22178F03257BBBA5008EB2B4 /* a-Shell-mini-IntentsUI */,
 				22984EEB22C93DBC00069497 /* Products */,
-				224DCFC82EE48B8000D1D8AC /* SwiftTerm */,
 				22B1B80D22CB9A5A00F7C452 /* Frameworks */,
 				2271BAFE2D8B064D00A809E5 /* a-Shell-noPython copy-Info.plist */,
 				223AF28E2D8B2E2300A4A62D /* a-Shell-mini copy2-Info.plist */,
@@ -3910,6 +3908,7 @@
 			name = "a-Shell-mini";
 			packageProductDependencies = (
 				22F87DB22EB8A9A3003251CC /* Kitura */,
+				2213EE122EE4A148001F0114 /* SwiftTerm */,
 			);
 			productName = "a-Shell";
 			productReference = 229D25A6257931E4004A78AC /* a-Shell-mini.app */;
@@ -3995,6 +3994,7 @@
 			mainGroup = 22984EE122C93DBC00069497;
 			packageReferences = (
 				22F87DAF2EB8A8C9003251CC /* XCRemoteSwiftPackageReference "Kitura" */,
+				2213EE112EE4A148001F0114 /* XCLocalSwiftPackageReference "SwiftTerm" */,
 			);
 			productRefGroup = 22984EEB22C93DBC00069497 /* Products */;
 			projectDirPath = "";
@@ -5080,6 +5080,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		2213EE112EE4A148001F0114 /* XCLocalSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SwiftTerm;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		22F87DAF2EB8A8C9003251CC /* XCRemoteSwiftPackageReference "Kitura" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -5092,6 +5099,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2213EE122EE4A148001F0114 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftTerm;
+		};
 		22F87DB02EB8A998003251CC /* Kitura */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 22F87DAF2EB8A8C9003251CC /* XCRemoteSwiftPackageReference "Kitura" */;

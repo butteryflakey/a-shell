@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import CoreText
 import SwiftUI
 import WebKit // for WebAssembly
 import SwiftTerm // for the terminal window
@@ -54,6 +55,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var wasmWebView: WKWebView? // webView for executing wasm
     var contentView: ContentView?
     var history: [String] = []
+    var historyPosition = 0
     var width = 80
     var height = 80
     var stdout_active = false
@@ -84,6 +86,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     let interrupt = "\u{0003}"  // control-C, used to kill the process
     let endOfTransmission = "\u{0004}"  // control-D, used to signal end of transmission
     let escape = "\u{001B}"
+    let deleteBackward = "\u{007F}"
     let carriageReturn = "\u{000D}" // carriage return
     // Are we editing a file?
     var closeAfterCommandTerminates = false
@@ -108,6 +111,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var terminalCursorColor: UIColor?
     var terminalCursorShape: String?
     var terminalFontLigature: String?
+    var basicCharWidth = 0.0
     // for audio / video playback:
     var avplayer: AVPlayer? = nil
     var avcontroller: AVPlayerViewController? = nil
@@ -131,7 +135,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var errorCode:Int32 = 0
     var errorMessage: String = ""
     var extraBytes: Data? = nil
-    var commandLine = ""
     
     // Create a document picker for directories.
     private let documentPicker =
@@ -200,7 +203,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             }
             // If it's termView at the front, just print the string
             // Otherwise, use webView?.evaluateJavaScript()
-            if (title == "\\u{007F}") {
+            if (title == deleteBackward) {
                 self.terminalView?.deleteBackward()
             } else {
                 self.terminalView?.feed(text: title)
@@ -533,30 +536,41 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 return
             }
             var commandString: String? = nil
-#if TODO
-            if (webView?.url?.path == Bundle.main.resourcePath! + "/hterm.html") {
-                // Terminal window using hterm.org, use window.term_.io.onVTKeystroke
+            if (terminalView != nil) && terminalView!.isFirstResponder {
                 switch (title) {
                 case "up":
-                    commandString = "window.term_.io.onVTKeystroke((!window.term_.keyboard.applicationCursor) ? '\\x1b[A' : '\\x1bOA');"
+                    if terminalView!.getTerminal().applicationCursor {
+                        terminalView!.send(txt: escape + "OA")
+                    } else {
+                        terminalView!.send(txt: escape + "[A")
+                    }
                     break
                 case "down":
-                    commandString = "window.term_.io.onVTKeystroke((!window.term_.keyboard.applicationCursor) ? '\\x1b[B' : '\\x1bOB');"
+                    if terminalView!.getTerminal().applicationCursor {
+                        terminalView!.send(txt: escape + "OB")
+                    } else {
+                        terminalView!.send(txt: escape + "[B")
+                    }
                     break
                 case "left":
-                    commandString = "window.term_.io.onVTKeystroke((!window.term_.keyboard.applicationCursor) ? '\\x1b[D' : '\\x1bOD');"
+                    if terminalView!.getTerminal().applicationCursor {
+                        terminalView!.send(txt: escape + "OD")
+                    } else {
+                        terminalView!.send(txt: escape + "[D")
+                    }
                     break
                 case "right":
-                    commandString = "window.term_.io.onVTKeystroke((!window.term_.keyboard.applicationCursor) ? '\\x1b[C' : '\\x1bOC');"
+                    if terminalView!.getTerminal().applicationCursor {
+                        terminalView!.send(txt: escape + "OC")
+                    } else {
+                        terminalView!.send(txt: escape + "[C")
+                    }
                     break
                 case "copy":
-                    commandString = "window.term_.copySelectionToClipboard();"
+                    terminalView?.copy()
                     break
                 case "cut":
-                    commandString = "window.term_.onCut();"
-                    break
-                case "selectAll":
-                    commandString = "window.term_.scrollPort_.selectAll();"
+                    terminalView?.cut(sender)
                     break
                 case "control":
                     controlOn = !controlOn;
@@ -569,11 +583,16 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         sender.image = controlOn ? UIImage(systemName: "chevron.up.square.fill")!.withConfiguration(configuration) :
                         UIImage(systemName: "chevron.up.square")!.withConfiguration(configuration)
                     }
-                    commandString = controlOn ? "window.controlOn = true;" : "window.controlOn = false;"
+                    break
+                case "selectAll":
+                    terminalView?.selectAll()
                     break
                 default:
                     break
                 }
+            }
+#if TODO
+            if (webView?.url?.path == Bundle.main.resourcePath! + "/hterm.html") {
             } else {
                 // Standard HTML window, send keyboard event:
                 switch (title) {
@@ -622,40 +641,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     // if let error = error { print(error) }
                     // if let result = result { print(result) }
                 }
-            }
-#else
-            // If it's the regular terminal:
-            switch (title) {
-            case "up":
-                // Don't know
-                break
-            case "down":
-                
-                break
-            case "left":
-                break
-            case "right":
-                break
-            case "copy":
-                break
-            case "cut":
-                break
-            case "selectAll":
-                break
-            case "control":
-                controlOn = !controlOn;
-                if #available(iOS 15.0, *) {
-                    // This has no impact on the button appearance with systemToolbar and no keyboard visible.
-                    sender.isSelected = controlOn
-                } else {
-                    // buttonName.fill? if it exists?
-                    let configuration = UIImage.SymbolConfiguration(pointSize: fontSize, weight: .regular, scale: .large)
-                    sender.image = controlOn ? UIImage(systemName: "chevron.up.square.fill")!.withConfiguration(configuration) :
-                    UIImage(systemName: "chevron.up.square")!.withConfiguration(configuration)
-                }
-                break
-            default:
-                break
             }
 #endif
         }
@@ -1297,20 +1282,13 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     }
     
     func printPrompt() {
+        guard terminalView != nil else { return }
         lastUsedPrompt = parsePrompt()
-        terminalView?.feed(text: lastUsedPrompt)
-        #if TODO
-        DispatchQueue.main.async {
-            self.webView?.evaluateJavaScript("window.commandRunning = ''; window.promptMessage='\(self.lastUsedPrompt)'; window.printPrompt(); window.updatePromptPosition();") { (result, error) in
-                /* if let error = error {
-                    NSLog("Error in executing window.commandRunning = ''; = \(error)")
-                }
-                if let result = result {
-                    NSLog("Result of executing window.commandRunning = ''; = \(result)")
-                } */
-            }
+        if (terminalView!.atTheEndOfTheLine()) {
+            terminalView!.feed(text: "\n\r")
         }
-        #endif
+        terminalView!.feed(text: lastUsedPrompt)
+        terminalView!.setPromptEnd()
     }
     
     func printHistory() {
@@ -1827,6 +1805,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         }
         if let terminalFont = UIFont(name: terminalFontName ?? factoryFontName, size: CGFloat(terminalFontSize ?? factoryFontSize)) {
             terminalView?.font = terminalFont
+            basicCharWidth = NSAttributedString(string: "m", attributes: [.font: terminalView?.font]).size().width
         }
         if (backgroundColor != nil) {
             terminalBackgroundColor = backgroundColor
@@ -2284,23 +2263,14 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             closeWindow()
             // If we're here, closeWindow did not work. Clear window:
             // Calling "exit(0)" here results in a major crash (I tried).
-            // TODO: wipe content of terminalView, erase command history
-            self.terminalView?.feed(text: self.escape + "[2J" + self.escape + "[1;1H")
-            #if TODO
-            // If we're here, closeWindow did not work. Clear window:
-            // Calling "exit(0)" here results in a major crash (I tried).
-            let infoCommand = "window.term_.wipeContents() ; window.printedContent = ''; window.term_.io.print('" + self.escape + "[2J'); window.term_.io.print('" + self.escape + "[1;1H'); window.commandArray = []; window.commandIndex = 0; window.maxCommandIndex = 0;"
-            self.webView?.evaluateJavaScript(infoCommand) { (result, error) in
-                // if let error = error {
-                //     print(error)
-                // }
-                // if let result = result {
-                //     print(result)
-                // }
+            commandQueue.async {
+                self.terminalView?.wipeContents()
+                // self.clearScreen()
             }
-            #endif
+            // self.terminalView?.feed(text: self.escape + "[2J" + self.escape + "[1;1H")
             // Also clear history:
             history = []
+            historyPosition = 0
             // and directories used:
             directoriesUsed = [:]
             // Also reset directory:
@@ -2317,11 +2287,13 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 changeDirectory(path: documentsUrl.path)
                 changeDirectory(path: documentsUrl.path)
             }
-            printPrompt()
+            commandQueue.async {
+                self.printPrompt()
+            }
             return
         } // exit()
         if (!command.contains("\n")) {
-            // save command in history. This duplicates the history array in hterm.html.
+            // save command in history.
             // We don't store multi-line commands in history, as they create issues.
             if (history.last != command) {
                 // only store command if different from last command
@@ -2331,6 +2303,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 // only keep the last 100 commands
                 history.removeFirst()
             }
+            historyPosition = history.count
         }
         // Can't create/close windows through ios_system, because it creates/closes a new session.
         if (actualCommand == "newWindow") {
@@ -3400,13 +3373,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             ios_setContext(UnsafeMutableRawPointer(mutating: self.persistentIdentifier?.toCString()));
             terminalView = contentView?.terminalview.view
             terminalView?.terminalDelegate = self
-            // TODO: still useful when we move the webView to the front (how?)
-            // add a contentController that is specific to each webview
-            // webView?.configuration.userContentController = WKUserContentController()
-            // webView?.configuration.userContentController.add(self, name: "aShell")
-            // terminalView?.navigationDelegate = self
-            // terminalView?.uiDelegate = self;
-            terminalView?.isAccessibilityElement = false
+            terminalView?.isAccessibilityElement = true
+            terminalView?.feed(text: self.escape + "[4h") // insert mode
+            terminalView?.feed(text: self.escape + "[?7h") // wrap-around mode
+            // reverse wrap?
             if #available(iOS 16.0, *) {
                 // terminalView?.isFindInteractionEnabled = true
             }
@@ -3418,6 +3388,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     break
                 }
             }
+            // printPrompt here doesn't work yet.
             if (!toolbarShouldBeShown) {
                 showToolbar = false
                 self.terminalView!.inputAccessoryView = self.emptyToolbar
@@ -3999,15 +3970,16 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // TODO: Ligatures are enabled by default on iOS, they're a property of NSAttributeString, not the font.
         if let terminalFont = UIFont(name: fontName, size: CGFloat(fontSize)) {
             terminalView?.font = terminalFont
+            basicCharWidth = NSAttributedString(string: "m", attributes: [.font: terminalView?.font]).size().width
         }
         setEnvironmentFGBG(foregroundColor: foregroundColor, backgroundColor: backgroundColor)
         if (showKeyboardAtStartup) {
             if let termView = terminalView {
                 if !termView.isFirstResponder {
                     _ = termView.becomeFirstResponder()
+                    printPrompt()
                 }
             }
-            printPrompt()
         }
         activateVoiceOver(value: UIAccessibility.isVoiceOverRunning)
     }
@@ -4100,21 +4072,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             } else {
                 history = UserDefaults.standard.array(forKey: "history") as? [String] ?? []
             }
+            historyPosition = history.count
             directoriesUsed = UserDefaults.standard.dictionary(forKey: "directoriesUsed") as? [String:Int] ?? [:]
             // NSLog("set history to \(history)")
             // NSLog("set directoriesUsed to \(directoriesUsed)")
-            windowHistory = "window.commandArray = ["
-            for command in history {
-                windowHistory += "\"" + command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\", "
-            }
-            windowHistory += "]; window.commandIndex = \(history.count); window.maxCommandIndex = \(history.count); "
-            // webView!.evaluateJavaScript(javascriptCommand) { (result, error) in
-            //     if error != nil {
-            //         NSLog("Error in recreating history, line = \(javascriptCommand)")
-            //         print(error)
-            //     }
-            //     if let result = result { print("Recreating history: \(result), line= \(javascriptCommand)") }
-            // }
             if let previousDirectoryData = userInfo["prev_wd"] {
                 if let previousDirectory = previousDirectoryData as? String {
                     NSLog("got previousDirectory as \(previousDirectory)")
@@ -4601,6 +4562,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     func outputToWebView(string: String) {
         guard (terminalView != nil) else { return }
         terminalView?.feed(text: string.replacingOccurrences(of:"\n", with: "\n\r")) // prints the string
+        NSLog("string: \(string)")
         
         #if TODO // when webview is visible:
             if (bufferedOutput == nil) {
@@ -4642,7 +4604,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             return
         }
         if let string = String(data: data, encoding: .utf8) {
-            // NSLog("UTF8 string: \(string)")
+            NSLog("UTF8 string: \(string)")
             outputToWebView(string: string)
             if (string.contains(endOfTransmission)) {
                 // NSLog("Received ^D, stopping writing")
@@ -4722,7 +4684,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // .send(): infinite loop
         // .insertText(): infinite loop
         if let string = String (bytes: data, encoding: .utf8) {
-            NSLog("send string: \(string)")
             if (currentCommand != "") {
                 // There is a command running, we send the data to its stdin thread
                 // TODO: add the ios_pager() case and interactive input case.
@@ -4760,25 +4721,81 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     stdin_file_input?.write(dataUtf8)
                 }
             } else {
+                // insert mode does not
                 // Need: cursorPosition (of course)
-                // Need: history (for up/down arrows)
-                // TODO: autocomplete, arrows, delete
-                // TODO: emojis, japanese characters
-                // See if send() is different in SwiftTerm
-                if (string == "\u{7f}") {
-                    terminalView?.feed(text: escape + "[D") // left arrow
-                } else {
-                    terminalView?.feed(text: string) // prints the string
-                }
-                if (string == "\u{7f}") {
-                    commandLine.removeLast()
-                    NSLog("commandLine: \(commandLine)")
-                } else if (string == carriageReturn) {
-                    executeCommand(command: commandLine)
-                    commandLine = ""
+                // TODO: autocomplete, arrows
+                NSLog("received string: \(string)")
+                switch (string) {
+                case deleteBackward:
+                    // send arrow-left, then delete-char, but only if there is something to delete:
+                    // This needs to be: currentPosition > cursorPosition
+                    // == canMoveLeft?
+                    if (terminalView!.canMoveLeft()) {
+                        if (terminalView!.getCurrentChar().utf8.count > 1) {
+                            // We assume that anything with an utf8 count > 1 is 2-char wide:
+                            terminalView?.feed(text: escape + "[D")
+                            terminalView?.feed(text: escape + "[P")
+                        }
+                        terminalView?.feed(text: escape + "[D")
+                        terminalView?.feed(text: escape + "[P")
+                    }
+                case escape + "OA": // up arrow (application mode)
+                    fallthrough
+                case escape + "[A": // up arrow
+                    if (historyPosition > 0) {
+                        historyPosition -= 1
+                        terminalView?.moveToBeginningOfLine()
+                        terminalView?.clearToEndOfLine()
+                        terminalView?.feed(text: history[historyPosition])
+                    }
+                case escape + "OB": // down arrow (application mode)
+                    fallthrough
+                case escape + "[B": // down arrow
+                    if (historyPosition < history.count) {
+                        historyPosition += 1
+                        terminalView?.moveToBeginningOfLine()
+                        terminalView?.clearToEndOfLine()
+                        if (historyPosition < history.count) {
+                            terminalView?.feed(text: history[historyPosition])
+                        }
+                    }
+                case escape + "OD": // left arrow (application mode)
+                    fallthrough
+                case escape + "[D": // left arrow
+                    // We assume that anything with an utf8 count > 1 is 2-char wide:
+                    // In that case we send an extra left arrow
+                    if (terminalView!.canMoveLeft()) {
+                        if (terminalView!.getCurrentChar().utf8.count > 1) {
+                            terminalView?.feed(text: escape + "[D")
+                        }
+                        terminalView?.feed(text: escape + "[D")
+                    } else {
+                        NSLog("Cannot move left")
+                    }
+                case escape + "OC": // right arrow (application mode)
+                    fallthrough
+                case escape + "[C": // right arrow
+                    if (terminalView!.canMoveRight()) {
+                        terminalView?.feed(text: escape + "[C")
+                        // We assume that anything with an utf8 count > 1 is 2-char wide:
+                        if (terminalView!.getCurrentChar().utf8.count > 1) {
+                            terminalView?.feed(text: escape + "[C")
+                        }
+                    } else {
+                        NSLog("Cannot move right")
+                    }
+                case carriageReturn:
+                    if let commandLine = terminalView?.getLastLine() {
+                        // TODO: strip spaces at the beginning / end
+                        NSLog("commandLine (internal): \(commandLine)")
+                        executeCommand(command: commandLine)
+                    }
                     terminalView?.feed(text: "\n\r")
-                } else if (string.first != escape.first) {
-                    commandLine += string
+                    break
+                default:
+                    // Default, send to term
+                    terminalView?.feed(text: string) // prints the string
+                    // Also no visible logic.
                 }
             }
         } else {
