@@ -17,8 +17,8 @@ import TipKit // Display some helpful messages for users
 import Kitura // for our local server for WebAssembly
 import NIOSSL // for TLS (https) authentification
 
-let installQueue = DispatchQueue(label: "installFiles", qos: .userInteractive) // high priority, but not blocking.
-let localServerQueue = DispatchQueue(label: "moveFiles", qos: .userInteractive) // high priority, but not blocking
+let cleanupQueue = DispatchQueue(label: "deleteFiles", qos: .userInteractive) // high priority, but not blocking.
+let localServerQueue = DispatchQueue(label: "localWebServer", qos: .userInteractive) // high priority, but not blocking
 // Need SDK install to be over before starting commands.
 var appDependentPath: String = "" // part of the path that depends on the App location (home, appdir)
 let __known_browsers = ["internalbrowser", "googlechrome", "firefox", "safari", "yandexbrowser", "brave", "opera"]
@@ -372,7 +372,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         } // end !a-Shell mini
         // Switch installed Python packages from 3.9 to 3.13:
         if (FileManager().fileExists(atPath: libraryURL.path + "/lib/python3.9/site-packages/")) {
-            installQueue.async{
+            cleanupQueue.async{
                 ios_switchSession("filesCleanup")
                 // Move all site-packages to $HOME/Library/lib/python3.11/site-packages/
                 executeCommandAndWait(command: "mkdir -p " + libraryURL.path + "/lib/python3.13/site-packages/")
@@ -383,7 +383,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         // Switch installed Python packages from 3.11 to 3.13:
         if (FileManager().fileExists(atPath: libraryURL.path + "/lib/python3.11/site-packages/")) {
-            installQueue.async{
+            cleanupQueue.async{
                 ios_switchSession("filesCleanup")
                 // Move all site-packages to $HOME/Library/lib/python3.11/site-packages/
                 executeCommandAndWait(command: "mkdir -p " + libraryURL.path + "/lib/python3.13/site-packages/")
@@ -393,7 +393,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         if (!versionUpToDate) {
-            installQueue.async{
+            cleanupQueue.async{
                 // The version number changed, so the App has been re-installed. Clean all pre-compiled Python files:
                 NSLog("Cleaning __pycache__ and .cpan/build")
                 ios_switchSession("filesCleanup")

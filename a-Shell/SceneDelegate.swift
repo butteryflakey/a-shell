@@ -54,8 +54,15 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var terminalView: TerminalView?
     var wasmWebView: WKWebView? // webView for executing wasm
     var contentView: ContentView?
+    // history of commands used:
     var history: [String] = []
     var historyPosition = 0
+    // history of commands started inside the command
+    var commandHistory: [String] = []
+    var commandHistoryPosition = 0
+    var commandsArray: [String] = []
+    // if we run the same command twice, keep the history:
+    var lastCommand = ""
     var width = 80
     var height = 80
     var stdout_active = false
@@ -73,18 +80,20 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     // var keyboardTimer: Timer!
     var timer = Timer()               // timer for scheduled execution of commands
     var webAssemblyTimer = Timer()    // timer for pinging the webassembly interpreter
+    var activateButtonsTimer = Timer()// timer for the long-press gesture for buttons
     var scheduledCommand = ""         // the command that is scheduled to run
     var scheduleInterval: Float = 0.0       // the interval for execution
     var lastExecution: Date = .distantPast  // the last time the command was executed
     var nextExecution: Date = .distantFuture  // the next time the command is scheduled to be executed
     private let commandQueue = DispatchQueue(label: "executeCommand", qos: .utility) // low priority, for executing commands
-    private var javascriptRunning = false // We can't execute JS while we are already executing JS.
-    private var executeWebAssemblyCommandsRunning = false // We can't execute JS while we are already executing JS.
+    var javascriptRunning = false // We can't execute JS while we are already executing JS.
+    var executeWebAssemblyCommandsRunning = false // We can't execute JS while we are already executing JS.
     // Buttons and toolbars:
     var controlOn = false;
     // control codes:
     let interrupt = "\u{0003}"  // control-C, used to kill the process
     let endOfTransmission = "\u{0004}"  // control-D, used to signal end of transmission
+    let tabulation = "\u{0009}"  // control-D, used to signal end of transmission
     let escape = "\u{001B}"
     let deleteBackward = "\u{007F}"
     let carriageReturn = "\u{000D}" // carriage return
@@ -93,6 +102,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     var resetDirectoryAfterCommandTerminates = ""
     var currentCommand = ""
     var shortcutCommandReceived: String? = nil
+    var interactiveCommandRunning = true
+    //
     var windowPrintedContent = ""
     var windowHistory = ""
     var pid: pid_t = 0
@@ -206,9 +217,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             if (title == deleteBackward) {
                 self.terminalView?.deleteBackward()
             } else {
-                self.terminalView?.feed(text: title)
+                NSLog("insertString: \(title)")
+                self.terminalView?.send(txt: title)
                 if (sendCarriageReturn) {
-                    self.terminalView?.feed(text: "\r\n")
+                    self.terminalView?.send(txt: "\r\n")
                 }
             }
         }
@@ -986,7 +998,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     if (button == nil) { continue }
                     // Sanitize the button title before storing it:
                     if (buttonParts[1] == "insertString") {
-                        button!.possibleTitles = ["", String(buttonParts[2]).replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "'", with: "\\'")]
+                        button!.possibleTitles = ["", buttonParts[2].convertUnicode]
+                        // .replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "'", with: "\\'")
                     } else {
                         button!.possibleTitles = ["", String(buttonParts[2])]
                     }
@@ -1040,26 +1053,64 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     
     @objc func longPressAction(_ sender: UILongPressGestureRecognizer) {
         // If up-down-left-right buttons are currently being pressed, activate multi-action arrows (instead of hide keyboard)
-        NSLog("Entered longPressAction, sender= \(sender)")
         if (sender.state == .ended) {
             continuousButtonAction = false
             return
         }
         if (sender.state == .began) {
             // NSLog("sender of long press: \(sender)") // it's a button, now
-            for button in editorToolbar.items! {
-                // long-press == repeat action only for arrows. For anything else, it's remove keyboard.
-                if (title(button) == "up") || (title(button) == "down") || (title(button) == "left") || (title(button) == "right") {
-                    if let buttonView = button.value(forKey: "view") as? UIView {
-                        if (buttonView == sender.view) {
-                            continuousButtonAction = true
-                            commandQueue.async {
-                                // this function contains a sleep() call.
-                                // We need to prevent the entire program from sleeping,
-                                // so we run it in a queue.
-                                self.continuousButtonAction(button)
+            if !useSystemToolbar {
+                for button in editorToolbar.items! {
+                    // long-press == repeat action only for arrows. For anything else, it's remove keyboard.
+                    if (title(button) == "up") || (title(button) == "down") || (title(button) == "left") || (title(button) == "right") {
+                        if let buttonView = button.value(forKey: "view") as? UIView {
+                            if (buttonView == sender.view) {
+                                continuousButtonAction = true
+                                commandQueue.async {
+                                    // this function contains a sleep() call.
+                                    // We need to prevent the entire program from sleeping,
+                                    // so we run it in a queue.
+                                    self.continuousButtonAction(button)
+                                }
+                                return
                             }
-                            return
+                        }
+                    }
+                }
+            } else {
+                if let leftButtonGroups = terminalView?.inputAssistantItem.leadingBarButtonGroups {
+                    for leftButtonGroup in leftButtonGroups {
+                        for button in leftButtonGroup.barButtonItems {
+                            if let buttonView = button.value(forKey: "view") as? UIView {
+                                if (buttonView == sender.view) {
+                                    continuousButtonAction = true
+                                    commandQueue.async {
+                                        // this function contains a sleep() call.
+                                        // We need to prevent the entire program from sleeping,
+                                        // so we run it in a queue.
+                                        self.continuousButtonAction(button)
+                                    }
+                                    return
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let rightButtonGroups = self.terminalView?.inputAssistantItem.trailingBarButtonGroups {
+                for rightButtonGroup in rightButtonGroups {
+                    for button in rightButtonGroup.barButtonItems {
+                        if let buttonView = button.value(forKey: "view") as? UIView {
+                            if (buttonView == sender.view) {
+                                continuousButtonAction = true
+                                commandQueue.async {
+                                    // this function contains a sleep() call.
+                                    // We need to prevent the entire program from sleeping,
+                                    // so we run it in a queue.
+                                    self.continuousButtonAction(button)
+                                }
+                                return
+                            }
                         }
                     }
                 }
@@ -1090,10 +1141,10 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         } else {
             toolbar.items = leftButtonGroup
             if #available(iOS 26, *) {
-                NSLog("leftButtonGroup: \(leftButtonGroup)")
-                NSLog("rightButtonGroup: \(rightButtonGroup)")
+                // NSLog("leftButtonGroup: \(leftButtonGroup)")
+                // NSLog("rightButtonGroup: \(rightButtonGroup)")
                 // liquid glass makes the buttons larger, we can't have a middle space on small screens
-                if (screenWidth > 400) || (leftButtonGroup.count + rightButtonGroup.count < 8) {
+                if (screenWidth > 550) || (leftButtonGroup.count + rightButtonGroup.count < 8) {
                     toolbar.items?.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: self, action: nil))
                 }
             } else {
@@ -1103,6 +1154,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 toolbar.items?.append(contentsOf: rightButtonGroup)
             }
         }
+        // Add long-press gesture recognizer for the buttons:
         // Long press gesture recognizer (for when the toolbar is pressed):
         let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(longPressAction(_:)))
         longPressGesture.minimumPressDuration = 1.0 // 1 second press
@@ -1868,12 +1920,12 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             // Main issue: the user can dismiss the fontPicker by sliding upwards.
             // So we need to check if it was, indeed dismissed:
             let rootVC = self.window?.rootViewController
-            rootVC?.present(fontPicker, animated: true, completion: nil)
+            rootVC?.present(fontPicker, animated: false, completion: nil)
         }
         // Wait until fontPicker is dismissed or a font has been selected:
         while (!self.fontPicker.isBeingDismissed) && (self.selectedFont == "") { }
         DispatchQueue.main.async {
-            self.fontPicker.dismiss(animated:true)
+            self.fontPicker.dismiss(animated: false)
         }
         if (selectedFont != "cancel") && (selectedFont != "") {
             return selectedFont
@@ -1912,34 +1964,40 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     
     func pickFolder() {
         // https://developer.apple.com/documentation/uikit/view_controllers/providing_access_to_directories
-        documentPicker.allowsMultipleSelection = true
+        if #unavailable(iOS 26) {
+            // This causes the document picker to freeze on iOS 26
+            documentPicker.allowsMultipleSelection = true
+        }
         documentPicker.delegate = self
         
         let rootVC = self.window?.rootViewController
-        // Set the initial directory (it doesn't work, so it's commented)
-        // documentPicker.directoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        // Set the initial directory (doesn't always work).
+        documentPicker.directoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         // Present the document picker.
         selectedDirectory = ""
         DispatchQueue.main.async {
-            rootVC?.present(self.documentPicker, animated: true, completion: nil)
+            rootVC?.present(self.documentPicker, animated: false, completion: nil)
         }
         while (selectedDirectory == "") { } // wait until a directory is selected, for Shortcuts.
     }
     
     func pickFile() {
-        documentPicker.allowsMultipleSelection = false
+        if #unavailable(iOS 26) {
+            documentPicker.allowsMultipleSelection = false
+        }
         documentPicker.delegate = self
         
         let rootVC = self.window?.rootViewController
-        // Set the initial directory (it doesn't work, so it's commented)
-        // documentPicker.directoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        // Set the initial directory (it doesn't always work)
+        documentPicker.directoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         // Present the document picker.
         selectedDirectory = ""
         DispatchQueue.main.async {
-            rootVC?.present(self.documentPicker, animated: true, completion: nil)
+            rootVC?.present(self.documentPicker, animated: false, completion: nil)
         }
         while (selectedDirectory == "") { } // wait until a directory is selected, for Shortcuts.
     }
+    
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         // Present the Document View Controller for the first document that was picked.
         // If you support picking multiple items, make sure you handle them all.
@@ -2051,13 +2109,13 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // copy arguments:
         let path = arguments![1]
         if (FileManager().fileExists(atPath: path)) {
-        let url = URL(fileURLWithPath: path)
-        let preview = UIDocumentInteractionController(url: url)
-        preview.delegate = self
-        DispatchQueue.main.async {
-            preview.presentPreview(animated: true)
-        }
-        return 0
+            let url = URL(fileURLWithPath: path)
+            let preview = UIDocumentInteractionController(url: url)
+            preview.delegate = self
+            DispatchQueue.main.async {
+                preview.presentPreview(animated: false)
+            }
+            return 0
         } else {
             // File not found.
             if !path.hasPrefix("-") {
@@ -2295,7 +2353,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         if (!command.contains("\n")) {
             // save command in history.
             // We don't store multi-line commands in history, as they create issues.
-            if (history.last != command) {
+            if (history.last != command) && (command != "") {
                 // only store command if different from last command
                 history.append(command)
             }
@@ -2443,6 +2501,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 DispatchQueue.main.async {
                     UIApplication.shared.isIdleTimerDisabled = true
                 }
+                self.interactiveCommandRunning = false // if it's interactive, ios_system will set it to true
                 ios_system(self.currentCommand)
                 NSLog("Returned from ios_system")
                 // for long running commands, ios_waitpid eats up to 68% CPU.
@@ -2556,8 +2615,9 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                             // fix for an iOS 26 bug: the buttons won't reappear unless I force a redraw of the toolbar.
                             self.editorToolbar.items?.append(UIBarButtonItem(title: "Hi", style: .plain, target: self, action: nil))
                             self.editorToolbar.items?.removeLast()
+                            // re-activate long-press gesture for buttons (iOS 26 only?):
+                            self.activateLongPressForButtons()
                         }
-                        // Now the longPressGesture doesn't work, but that's another story.
                     }
                 }
             }
@@ -2596,7 +2656,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             let newHeight = Int(command) ?? 80
             if (newHeight != height) {
                 height = newHeight
-                // NSLog("Calling ios_setWindowSize: \(width) x \(height)")
+                // NSLog("Calling ios_setWindowSize: \(width) x \(height)")
                 ios_setWindowSize(Int32(width), Int32(height), self.persistentIdentifier?.toCString())
                 setenv("LINES", "\(height)".toCString(), 1)
             }
@@ -3374,8 +3434,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             terminalView = contentView?.terminalview.view
             terminalView?.terminalDelegate = self
             terminalView?.isAccessibilityElement = true
-            terminalView?.feed(text: self.escape + "[4h") // insert mode
-            terminalView?.feed(text: self.escape + "[?7h") // wrap-around mode
+            // terminalView?.feed(text: self.escape + "[4h") // insert mode
+            // terminalView?.feed(text: self.escape + "[?7h") // wrap-around mode
             // reverse wrap?
             if #available(iOS 16.0, *) {
                 // terminalView?.isFindInteractionEnabled = true
@@ -3478,41 +3538,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             if let ligature = UserDefaults.standard.value(forKey: "fontLigature") as? String {
                 terminalFontLigature = ligature
             }
-            // initialize command list for autocomplete:
-            guard var commandsArray = commandsAsArray() as! [String]? else { return }
-            // Also scan PATH for executable files:
-            let executablePath = String(cString: getenv("PATH"))
-            // NSLog("\(executablePath)")
-            for directory in executablePath.components(separatedBy: ":") {
-                do {
-                    // We don't check for exec status, because files inside $APPDIR have no x bit set.
-                    for file in try FileManager().contentsOfDirectory(atPath: directory) {
-                        let newCommand = URL(fileURLWithPath: file).lastPathComponent
-                        // Do not add a command if it is already present:
-                        if (!commandsArray.contains(newCommand)) {
-                            commandsArray.append(newCommand)
-                        }
-                    }
-                } catch {
-                    // The directory is unreadable, move to next one
-                    continue
-                }
-            }
-            commandsArray.sort() // make sure it's in alphabetical order
-            var javascriptCommand = "var commandList = ["
-            for command in commandsArray {
-                javascriptCommand += "\"" + command + "\", "
-            }
-            javascriptCommand += "];"
-            #if TODO
-            webView?.evaluateJavaScript(javascriptCommand) { (result, error) in
-                if error != nil {
-                    // NSLog("Error in creating command list, line = \(javascriptCommand)")
-                    // print(error)
-                }
-                // if let result = result { print(result) }
-            }
-            #endif
             // If .profile or .bashrc exist, load them:
             for configFileName in [".profile", ".bashrc"] {
                 var configFileUrl = try! FileManager().url(for: .documentDirectory,
@@ -3520,9 +3545,8 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                                                            appropriateFor: nil,
                                                            create: true)
                 configFileUrl = configFileUrl.appendingPathComponent(configFileName)
-                // A big issue is that, at this point, the window does not exist yet. So stdin, stdout, stderr also do not exist.
                 if (FileManager().fileExists(atPath: configFileUrl.path)) {
-                    installQueue.async {
+                    commandQueue.async {
                         do {
                             let contentOfFile = try String(contentsOf: configFileUrl, encoding: String.Encoding.utf8)
                             let commands = contentOfFile.split(separator: "\n")
@@ -3531,6 +3555,22 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                             thread_stdin  = nil
                             thread_stdout = nil
                             thread_stderr = nil
+                            let stdin_pipe = Pipe()
+                            self.stdin_file = fdopen(stdin_pipe.fileHandleForReading.fileDescriptor, "r")
+                            let stdout_pipe = Pipe()
+                            self.stdout_file = fdopen(stdout_pipe.fileHandleForWriting.fileDescriptor, "w")
+                            // Call the following functions when data is written to stdout/stderr.
+                            if (self.stdout_file != nil) {
+                                stdout_pipe.fileHandleForReading.readabilityHandler = self.onStdout
+                            }
+                            self.stdout_active = true
+                            // Make sure we're on the right session:
+                            // Set COLUMNS to term width:
+                            setenv("COLUMNS", "\(self.width)".toCString(), 1);
+                            setenv("LINES", "\(self.height)".toCString(), 1);
+                            ios_setWindowSize(Int32(self.width), Int32(self.height), self.persistentIdentifier?.toCString())
+                            // Make sure we're running the right session
+                            ios_setStreams(self.stdin_file, self.stdout_file, self.stdout_file)
                             for command in commands {
                                 let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
                                 if (trimmedCommand.count == 0) { continue } // skip white lines
@@ -3552,6 +3592,27 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                     }
                 }
             }
+            // initialize command list for autocomplete (*after* loading the .profile):
+            commandsArray = commandsAsArray() as! [String]
+            // Also scan PATH for executable files:
+            let executablePath = String(cString: getenv("PATH"))
+            // NSLog("\(executablePath)")
+            for directory in executablePath.components(separatedBy: ":") {
+                do {
+                    // We don't check for exec status, because files inside $APPDIR have no x bit set.
+                    for file in try FileManager().contentsOfDirectory(atPath: directory) {
+                        let newCommand = URL(fileURLWithPath: file).lastPathComponent
+                        // Do not add a command if it is already present:
+                        if (!commandsArray.contains(newCommand)) {
+                            commandsArray.append(newCommand)
+                        }
+                    }
+                } catch {
+                    // The directory is unreadable, move to next one
+                    continue
+                }
+            }
+            commandsArray.sort() // make sure it's in alphabetical order
             // Was this window created with a purpose?
             // Case 1: url to open is inside urlContexts
             NSLog("connectionOptions.urlContexts: \(connectionOptions.urlContexts.first)")
@@ -3590,17 +3651,17 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                             userInfo["cwd"] = fileURL.path
                         } else {
                             NSLog("Calling changeDirectory: \(fileURL.path)")  // seldom called
-                            installQueue.async {
+                            commandQueue.async {
                                 changeDirectory(path: fileURL.path) // call cd_main and checks secured bookmarked URLs
                                 self.closeAfterCommandTerminates = false
                             }
                         }
                     } else {
-                        // Go through installQueue so that the command is launched *after* the .profile is executed
+                        // Go through commandQueue so that the command is launched *after* the .profile is executed
                         self.closeAfterCommandTerminates = true
                         // It's a file
                         // TODO: customize the command (vim, microemacs, python, clang, TeX?)
-                        installQueue.async {
+                        commandQueue.async {
                             self.executeCommand(command: "vim " + (fileURL.path.removingPercentEncoding!.replacingOccurrences(of: " ", with: "\\ ")))
                         }
                     }
@@ -3638,7 +3699,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                 if (userActivity.activityType == "AsheKube.app.a-Shell.EditDocument") {
                     self.closeAfterCommandTerminates = true
                     window.makeKeyAndVisible() // We need it a 2nd time for keyboard to resize itself.
-                    installQueue.async {
+                    commandQueue.async {
                         if let fileURL: NSURL = userActivity.userInfo!["url"] as? NSURL {
                             // NSLog("willConnectTo: \(fileURL.path!.replacingOccurrences(of: "%20", with: " "))")
                             self.executeCommand(command: "vim " + (fileURL.path!.removingPercentEncoding!.replacingOccurrences(of: " ", with: "\\ ")))
@@ -3737,7 +3798,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         command.removeFirst("//".count)
                     }
                     command = command.removingPercentEncoding!
-                    installQueue.async {
+                    commandQueue.async {
                         if let groupUrl = FileManager().containerURL(forSecurityApplicationGroupIdentifier:"group.AsheKube.a-Shell") {
                             changeDirectory(path: groupUrl.path)
                         }
@@ -3786,7 +3847,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         userInfo["cwd"] = fileURL.path
                     } else {
                         NSLog("Calling changeDirectory: \(fileURL.path)")
-                        installQueue.async {
+                        commandQueue.async {
                             changeDirectory(path: fileURL.path) // call cd_main and checks secured bookmarked URLs
                             self.closeAfterCommandTerminates = false
                         }
@@ -3831,7 +3892,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
                         // if let result = result { print(result) }
                     }
                     #endif
-                    installQueue.async {
+                    commandQueue.async {
                         self.executeCommand(command: "vim " + (fileURL.path.removingPercentEncoding!.replacingOccurrences(of: " ", with: "\\ ")))
                     }
                 }
@@ -3907,17 +3968,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         // If the user is running one window in light mode and one in dark mode,
         // it will be the same environment for both.
         // unless I make COLORFGBG a scene-dependent environment variable, like COLUMN and LINES.
-        var H_fg: CGFloat = 0
-        var S_fg: CGFloat = 0
-        var B_fg: CGFloat = 0
-        var A_fg: CGFloat = 0
-        foregroundColor.getHue(&H_fg, saturation: &S_fg, brightness: &B_fg, alpha: &A_fg)
-        var H_bg: CGFloat = 0
-        var S_bg: CGFloat = 0
-        var B_bg: CGFloat = 0
-        var A_bg: CGFloat = 0
-        backgroundColor.getHue(&H_bg, saturation: &S_bg, brightness: &B_bg, alpha: &A_bg)
-        if (B_fg > B_bg) {
+        if (foregroundColor.getBrightness() > backgroundColor.getBrightness()) {
             // Dark mode
             setenv("COLORFGBG", "15;0", 1)
             if (UserDefaults.standard.string(forKey: "toolbar_color") == "screen") {
@@ -3928,6 +3979,54 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             setenv("COLORFGBG", "0;15", 1)
             if (UserDefaults.standard.string(forKey: "toolbar_color") == "screen") {
                 overrideUserInterfaceStyle(style: .light)
+            }
+        }
+    }
+    
+    func activateLongPressForButtons() {
+        // Give it slight delay so the button views are actually present
+        activateButtonsTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) {_ in
+            // NSLog("Launching the buttons timer")
+            if (!useSystemToolbar) {
+                for button in self.editorToolbar.items! {
+                    if let buttonView = button.value(forKey: "view") as? UIView {
+                        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(self.longPressAction(_:)))
+                        longPressGesture.minimumPressDuration = 1.0 // 1 second press
+                        longPressGesture.allowableMovement = 15 // 15 points
+                        longPressGesture.delegate = self
+                        buttonView.addGestureRecognizer(longPressGesture)
+                        self.activateButtonsTimer.invalidate()
+                    }
+                }
+            } else {
+                if let leftButtonGroups = self.terminalView?.inputAssistantItem.leadingBarButtonGroups {
+                    for leftButtonGroup in leftButtonGroups {
+                        for button in leftButtonGroup.barButtonItems {
+                            if let buttonView = button.value(forKey: "view") as? UIView {
+                                let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(self.longPressAction(_:)))
+                                longPressGesture.minimumPressDuration = 1.0 // 1 second press
+                                longPressGesture.allowableMovement = 15 // 15 points
+                                longPressGesture.delegate = self
+                                buttonView.addGestureRecognizer(longPressGesture)
+                                self.activateButtonsTimer.invalidate()
+                            }
+                        }
+                    }
+                }
+                if let rightButtonGroups = self.terminalView?.inputAssistantItem.trailingBarButtonGroups {
+                    for rightButtonGroup in rightButtonGroups {
+                        for button in rightButtonGroup.barButtonItems {
+                            if let buttonView = button.value(forKey: "view") as? UIView {
+                                let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(self.longPressAction(_:)))
+                                longPressGesture.minimumPressDuration = 1.0 // 1 second press
+                                longPressGesture.allowableMovement = 15 // 15 points
+                                longPressGesture.delegate = self
+                                buttonView.addGestureRecognizer(longPressGesture)
+                                self.activateButtonsTimer.invalidate()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -3974,13 +4073,18 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         }
         setEnvironmentFGBG(foregroundColor: foregroundColor, backgroundColor: backgroundColor)
         if (showKeyboardAtStartup) {
-            if let termView = terminalView {
+            if let termView = self.terminalView {
                 if !termView.isFirstResponder {
                     _ = termView.becomeFirstResponder()
-                    printPrompt()
+                    // Making sure the prompt is printed after the .profile is executed
+                    commandQueue.async {
+                        self.printPrompt()
+                    }
                 }
             }
         }
+        // Delay the long-press-gesture a little so that the buttons have a view:
+        activateLongPressForButtons()
         activateVoiceOver(value: UIAccessibility.isVoiceOverRunning)
     }
     
@@ -4562,7 +4666,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
     func outputToWebView(string: String) {
         guard (terminalView != nil) else { return }
         terminalView?.feed(text: string.replacingOccurrences(of:"\n", with: "\n\r")) // prints the string
-        NSLog("string: \(string)")
+        // NSLog("string: \(string)")
         
         #if TODO // when webview is visible:
             if (bufferedOutput == nil) {
@@ -4589,7 +4693,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             while (string.hasSuffix("\n") || string.hasSuffix("\r")) {
                 string.removeLast("\n".count)
             }
-            terminalView?.feed(text: string)
+            terminalView?.send(txt: string)
         }
     }
     
@@ -4604,7 +4708,7 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
             return
         }
         if let string = String(data: data, encoding: .utf8) {
-            NSLog("UTF8 string: \(string)")
+            // NSLog("UTF8 string: \(string)")
             outputToWebView(string: string)
             if (string.contains(endOfTransmission)) {
                 // NSLog("Received ^D, stopping writing")
@@ -4661,173 +4765,6 @@ class SceneDelegate: UIViewController, UIWindowSceneDelegate, WKNavigationDelega
         }
     }
 
-    // None of these are called.
-    // TerminalViewDelegate stubs:
-    func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
-        ios_setWindowSize(Int32(newCols), Int32(newRows), self.persistentIdentifier?.toCString())
-        setenv("COLUMNS", "\(newCols)".toCString(), 1)
-        setenv("LINES", "\(newRows)".toCString(), 1)
-    }
-    
-    func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
-        // Nope
-    }
-    
-    func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {
-        NSLog("hostCurrentDirectoryUpdate: \(directory)")
-    }
-    
-    func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
-        // This is where I treat the incoming keypress
-        // .feed(byteArray:) doesn't work with compose emojis
-        // .feed(text:) doesn't work with compose emojis
-        // .send(): infinite loop
-        // .insertText(): infinite loop
-        if let string = String (bytes: data, encoding: .utf8) {
-            if (currentCommand != "") {
-                // There is a command running, we send the data to its stdin thread
-                // TODO: add the ios_pager() case and interactive input case.
-                if (javascriptRunning && (thread_stdin_copy != nil)) {
-                    stdinString += string
-                    return
-                }
-                if (string == endOfTransmission) {
-                    // There is a webAssembly command running, do not close stdin.
-                    // Stop standard input for the command:
-                    guard stdin_file_input != nil else {
-                        // no command running, maybe it ended without us knowing:
-                        printPrompt()
-                        return
-                    }
-                    do {
-                        try stdin_file_input?.close()
-                    }
-                    catch {
-                        // NSLog("Could not close stdin input.")
-                    }
-                    stdin_file_input = nil
-                } else if (string == interrupt) {
-                    // Calling ios_kill while executing webAssembly or JavaScript is a bad idea.
-                    // Do we have a way to interrupt JS execution in WkWebView?
-                    if (!javascriptRunning) {
-                        ios_kill() // TODO: add printPrompt() here if no command running
-                    }
-                } else {
-                    guard stdin_file_input != nil else { return }
-                    guard let dataUtf8 = string.data(using: .utf8) else { return }
-                    // TODO: don't send data if pipe already closed (^D followed by another key)
-                    // (store a variable that says the pipe has been closed)
-                    // NSLog("Writing (not interactive) \(command) to stdin")
-                    stdin_file_input?.write(dataUtf8)
-                }
-            } else {
-                // insert mode does not
-                // Need: cursorPosition (of course)
-                // TODO: autocomplete, arrows
-                NSLog("received string: \(string)")
-                switch (string) {
-                case deleteBackward:
-                    // send arrow-left, then delete-char, but only if there is something to delete:
-                    // This needs to be: currentPosition > cursorPosition
-                    // == canMoveLeft?
-                    if (terminalView!.canMoveLeft()) {
-                        if (terminalView!.getCurrentChar().utf8.count > 1) {
-                            // We assume that anything with an utf8 count > 1 is 2-char wide:
-                            terminalView?.feed(text: escape + "[D")
-                            terminalView?.feed(text: escape + "[P")
-                        }
-                        terminalView?.feed(text: escape + "[D")
-                        terminalView?.feed(text: escape + "[P")
-                    }
-                case escape + "OA": // up arrow (application mode)
-                    fallthrough
-                case escape + "[A": // up arrow
-                    if (historyPosition > 0) {
-                        historyPosition -= 1
-                        terminalView?.moveToBeginningOfLine()
-                        terminalView?.clearToEndOfLine()
-                        terminalView?.feed(text: history[historyPosition])
-                    }
-                case escape + "OB": // down arrow (application mode)
-                    fallthrough
-                case escape + "[B": // down arrow
-                    if (historyPosition < history.count) {
-                        historyPosition += 1
-                        terminalView?.moveToBeginningOfLine()
-                        terminalView?.clearToEndOfLine()
-                        if (historyPosition < history.count) {
-                            terminalView?.feed(text: history[historyPosition])
-                        }
-                    }
-                case escape + "OD": // left arrow (application mode)
-                    fallthrough
-                case escape + "[D": // left arrow
-                    // We assume that anything with an utf8 count > 1 is 2-char wide:
-                    // In that case we send an extra left arrow
-                    if (terminalView!.canMoveLeft()) {
-                        if (terminalView!.getCurrentChar().utf8.count > 1) {
-                            terminalView?.feed(text: escape + "[D")
-                        }
-                        terminalView?.feed(text: escape + "[D")
-                    } else {
-                        NSLog("Cannot move left")
-                    }
-                case escape + "OC": // right arrow (application mode)
-                    fallthrough
-                case escape + "[C": // right arrow
-                    if (terminalView!.canMoveRight()) {
-                        terminalView?.feed(text: escape + "[C")
-                        // We assume that anything with an utf8 count > 1 is 2-char wide:
-                        if (terminalView!.getCurrentChar().utf8.count > 1) {
-                            terminalView?.feed(text: escape + "[C")
-                        }
-                    } else {
-                        NSLog("Cannot move right")
-                    }
-                case carriageReturn:
-                    if let commandLine = terminalView?.getLastLine() {
-                        // TODO: strip spaces at the beginning / end
-                        NSLog("commandLine (internal): \(commandLine)")
-                        executeCommand(command: commandLine)
-                    }
-                    terminalView?.feed(text: "\n\r")
-                    break
-                default:
-                    // Default, send to term
-                    terminalView?.feed(text: string) // prints the string
-                    // Also no visible logic.
-                }
-            }
-        } else {
-            NSLog("Failure of conversion: \(data)")
-        }
-    }
-    
-    func scrolled(source: SwiftTerm.TerminalView, position: Double) {
-        //
-    }
-    
-    func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String : String]) {
-        if let fixedup = link.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            if let url = NSURLComponents(string: fixedup) {
-                if let nested = url.url {
-                    UIApplication.shared.open (nested)
-                }
-            }
-        }
-    }
-    
-    func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
-        if let str = String (bytes: content, encoding: .utf8) {
-            UIPasteboard.general.string = str
-        }
-    }
-    
-    func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
-        //
-    }
-    
-
 }
     
 extension SceneDelegate: AVPlayerViewControllerDelegate {
@@ -4876,7 +4813,7 @@ extension SceneDelegate: WKUIDelegate {
         }
         
         let rootVC = self.window?.rootViewController
-        rootVC?.present(alertController, animated: true, completion: nil)
+        rootVC?.present(alertController, animated: false, completion: nil)
     }
     
     func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -4923,7 +4860,7 @@ extension SceneDelegate: WKUIDelegate {
         }
         
         let rootVC = self.window?.rootViewController
-        rootVC?.present(alertController, animated: true, completion: nil)
+        rootVC?.present(alertController, animated: false, completion: nil)
     }
     
     func fileDescriptor(input: String) -> Int32? {
@@ -5079,7 +5016,7 @@ extension SceneDelegate: WKUIDelegate {
                 if let numValues = Int(arguments[3]) {
                     // arguments[3] = length
                     // arguments[4] = offset
-                    // arguments[5] = tty input
+                    // arguments[5] = tty input
                     // let values = arguments[3].components(separatedBy:",")
                     let offset = UInt64(arguments[4]) ?? 0
                     let isTTY = Int(arguments[5]) ?? 0
@@ -5704,7 +5641,7 @@ extension SceneDelegate: WKUIDelegate {
         
         let rootVC = self.window?.rootViewController
         // rootVC?.resignFirstResponder()
-        rootVC?.present(alertController, animated: true, completion: { () -> Void in
+        rootVC?.present(alertController, animated: false, completion: { () -> Void in
             // TODO: insert here some magical line that will restore focus to the window
             // makeFirstResponder and makeKeyboardActive don't work
         })

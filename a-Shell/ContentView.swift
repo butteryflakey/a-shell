@@ -56,7 +56,7 @@ public var viewBehavior: ViewBehavior = .ignoreSafeArea
 
 struct ContentView: View {
     @State private var keyboardHeight: CGFloat = 0
-    @State private var keyboardWidth: CGFloat = 0
+    @State private var frameHeight: CGFloat = 0
     // @State private var viewBehavior: ViewBehavior = .ignoreSafeArea
     
     let terminalview = Termview()
@@ -81,7 +81,9 @@ struct ContentView: View {
             let x = (note.userInfo?[UIWindow.keyboardFrameEndUserInfoKey] as? CGRect ?? .zero).origin.x
             let y = (note.userInfo?[UIWindow.keyboardFrameEndUserInfoKey] as? CGRect ?? .zero).origin.y
             let userInfo = note.userInfo
-            // NSLog("Received \(note.name.rawValue) with height \(height) width \(width) origin: \(x) -- \(y)")
+            NSLog("SwiftUI Received \(note.name.rawValue) with height \(height) width \(width) origin: \(x) -- \(y)")
+            return height
+            // This code is not used anymore, but it might be again.
             // if (height > 200) && (x > 0) {
             //     NSLog("Undetected floating keyboard detected")
             // }
@@ -106,15 +108,21 @@ struct ContentView: View {
         // resize depending on keyboard. Specify size (.frame) instead of padding.
         terminalview.onReceive(keyboardChangePublisher) {
             self.keyboardHeight = $0
-            // NSLog("keyboardHeight: \(keyboardHeight)")
-            // NSLog("Bounds \(webview.webView.coordinateSpace.bounds)")
-            // NSLog("Screen \(UIScreen.main.bounds)")
+            if (!useSystemToolbar) {
+                frameHeight = UIScreen.main.bounds.height - keyboardHeight - (terminalview.view.inputAccessoryView?.bounds.height ?? 0)
+                NSLog("computed height: \(frameHeight) actual: \(terminalview.view.frame.height)")
+            }
         }
-        .padding(.top, 0) // Important, to set the size of the view
-        .if(viewBehavior == .original || viewBehavior == .ignoreSafeArea) {
-                $0.padding(.bottom, keyboardHeight)
+        .if(useSystemToolbar) {
+            // required to align the bottom of the terminal to the top of the inputAssistantItem
+            $0.padding(.bottom, 0)
         }
-        .if((viewBehavior == .ignoreSafeArea || viewBehavior == .fullScreen)) {
+        .if(((viewBehavior == .original || viewBehavior == .ignoreSafeArea)) && !useSystemToolbar) {
+            // required on iPhones otherwise the terminal extends behind the inputAccessoryView
+            // It can still be one-two pixels behind it sometimes.
+            $0.frame(width: UIScreen.main.bounds.width, height: frameHeight)
+        }
+        .if(((viewBehavior == .ignoreSafeArea || viewBehavior == .fullScreen)) && useSystemToolbar) {
             $0.ignoresSafeArea(.container, edges: .bottom)
         }
     }

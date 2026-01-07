@@ -1710,11 +1710,7 @@ public func stopInteractive() {
     }
     DispatchQueue.main.async {
         if let delegate = currentDelegate {
-            delegate.resignFirstResponder()
-            // delegate.webView?.evaluateJavaScript("window.interactiveCommandRunning = false;") { (result, error) in
-                // if let error = error { print(error) }
-                // if let result = result { print(result) }
-            // }
+            delegate.interactiveCommandRunning = false
         }
     }
 }
@@ -1724,27 +1720,17 @@ public func storeInteractive() -> Int32 {
     if (runningInExtension) {
         return 0
     }
-    var returnValue:Int32 = -1;
-    #if TODO
-    var waitingForAnswer = true
+    var returnValue: Int32 = 0
     DispatchQueue.main.async {
         if let delegate = currentDelegate {
-            delegate.resignFirstResponder()
-            delegate.webView?.evaluateJavaScript("window.interactiveCommandRunning;") { (result, error) in
-                // if let error = error { print(error); }
-                if let result = result as? Int32 { returnValue = result; }
-                waitingForAnswer = false
+            if delegate.interactiveCommandRunning {
+                returnValue = 1
+            } else {
+                returnValue = 0
             }
         }
     }
-    // We need to place something in this loop, otherwise it gets removed by the optimizer.
-    while (waitingForAnswer) {
-        if (thread_stdout != nil) { fflush(thread_stdout) }
-        if (thread_stderr != nil) { fflush(thread_stderr) }
-    }
-    #endif
-    // NSLog("Returning from storeInteractive, result= \(returnValue)")
-    return returnValue;
+    return returnValue
 }
 
 @_cdecl("startInteractive")
@@ -1752,17 +1738,11 @@ public func startInteractive() {
     if (runningInExtension) {
         return
     }
-    #if TODO
     DispatchQueue.main.async {
         if let delegate = currentDelegate {
-            delegate.resignFirstResponder()
-            delegate.webView?.evaluateJavaScript("window.interactiveCommandRunning = true;") { (result, error) in
-                // if let error = error { print(error) }
-                // if let result = result { print(result) }
-            }
+            delegate.interactiveCommandRunning = true
         }
     }
-    #endif
 }
 
 @_cdecl("needLLVM")
