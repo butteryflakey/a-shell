@@ -1,4 +1,4 @@
 [submodule "cpython"]
 	path = cpython
-	url = git@github.com:holzschu/cpython.git
+	url = https://github.com/holzschu/cpython.git
 	branch = 3.11
